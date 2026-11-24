@@ -3,10 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>CRIMSON FREQUENCY // PS1 VHS Survival Horror</title>
+  <title>CRIMSON FREQUENCY // Three.js PS1 VHS Survival Horror</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <style>
     * {
       box-sizing: border-box;
@@ -17,8 +18,8 @@
     }
 
     body {
-      background-color: #050506;
-      color: #d4d4d8;
+      background-color: #0b0d07;
+      color: #d6d8c4;
       font-family: 'Share Tech Mono', monospace;
       overflow: hidden;
       width: 100vw;
@@ -33,31 +34,46 @@
       width: 100vw;
       height: 100vh;
       overflow: hidden;
-      background: #030404;
+      background: #14170c;
       cursor: crosshair;
     }
 
-    canvas {
-      display: block;
+    #three-mount {
+      position: absolute;
+      inset: 0;
       width: 100%;
       height: 100%;
+    }
+
+    #three-mount canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
       image-rendering: pixelated;
     }
 
-    /* VHS & CRT Post-Processing Overlays */
+    /* Murky Yellow-Green "Bad Parenting" Color Grade + VHS Scanlines */
+    .vhs-color-grade {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(
+        circle at center,
+        rgba(138, 148, 72, 0.08) 0%,
+        rgba(46, 54, 24, 0.24) 65%,
+        rgba(12, 15, 7, 0.68) 100%
+      );
+      mix-blend-mode: screen;
+      z-index: 9;
+    }
+
     .vhs-scanlines {
       position: absolute;
       inset: 0;
       pointer-events: none;
-      background: linear-gradient(
-        rgba(18, 16, 16, 0) 50%,
-        rgba(0, 0, 0, 0.36) 50%
-      ), linear-gradient(
-        90deg,
-        rgba(255, 0, 0, 0.03),
-        rgba(0, 255, 0, 0.01),
-        rgba(0, 0, 255, 0.03)
-      );
+      background:
+        linear-gradient(rgba(18, 20, 12, 0) 50%, rgba(0, 0, 0, 0.34) 50%),
+        linear-gradient(90deg, rgba(255, 40, 0, 0.03), rgba(160, 255, 60, 0.02), rgba(0, 180, 255, 0.03));
       background-size: 100% 3px, 6px 100%;
       z-index: 10;
     }
@@ -66,9 +82,31 @@
       position: absolute;
       inset: 0;
       pointer-events: none;
-      background: radial-gradient(circle at center, transparent 42%, rgba(0, 0, 0, 0.88) 100%);
+      box-shadow: inset 0 0 110px rgba(8, 10, 4, 0.85);
       z-index: 11;
-      transition: box-shadow 0.2s ease;
+    }
+
+    /* VHS Tracking Roll Bar */
+    .vhs-tracking-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 14px;
+      background: linear-gradient(
+        to bottom,
+        transparent,
+        rgba(195, 204, 120, 0.09),
+        rgba(255, 255, 255, 0.05),
+        transparent
+      );
+      pointer-events: none;
+      z-index: 12;
+      animation: vhsRoll 7.5s linear infinite;
+    }
+
+    @keyframes vhsRoll {
+      0% { top: -5%; }
+      100% { top: 105%; }
     }
 
     #damage-vignette {
@@ -76,7 +114,7 @@
       inset: 0;
       pointer-events: none;
       box-shadow: inset 0 0 0px rgba(180, 0, 0, 0);
-      z-index: 12;
+      z-index: 13;
       transition: box-shadow 0.15s ease-out;
     }
 
@@ -87,17 +125,17 @@
       opacity: 0;
       background: repeating-linear-gradient(
         0deg,
-        rgba(255, 0, 40, 0.08) 0px,
-        rgba(0, 255, 255, 0.08) 2px,
+        rgba(220, 38, 38, 0.14) 0px,
+        rgba(163, 230, 53, 0.1) 2px,
         transparent 4px,
         transparent 8px
       );
       mix-blend-mode: screen;
-      z-index: 13;
+      z-index: 14;
       transition: opacity 0.1s linear;
     }
 
-    /* Minimalist Retro Camcorder / PS1 HUD */
+    /* Minimalist Retro Camcorder / Resident Evil Classic HUD */
     #hud-top {
       position: absolute;
       top: 16px;
@@ -109,7 +147,7 @@
       pointer-events: none;
       z-index: 20;
       font-family: 'VT323', monospace;
-      text-shadow: 2px 2px 0px #000, -1px -1px 0px rgba(255,0,0,0.4);
+      text-shadow: 2px 2px 0px #090b05, -1px -1px 0px rgba(180, 190, 90, 0.25);
     }
 
     .rec-badge {
@@ -117,7 +155,7 @@
       align-items: center;
       gap: 8px;
       font-size: 22px;
-      color: #e4e4e7;
+      color: #dfe3c5;
       letter-spacing: 2px;
     }
 
@@ -138,33 +176,34 @@
     .objective-box {
       margin-top: 6px;
       font-size: 18px;
-      color: #a1a1aa;
-      background: rgba(5, 5, 7, 0.65);
-      border-left: 2px solid #991b1b;
+      color: #c7cca8;
+      background: rgba(15, 18, 9, 0.78);
+      border-left: 3px solid #991b1b;
       padding: 4px 10px;
-      max-width: 340px;
+      max-width: 360px;
     }
 
     .inventory-strip {
       display: flex;
-      gap: 8px;
+      flex-wrap: wrap;
+      gap: 6px;
       margin-top: 8px;
     }
 
     .key-slot {
       padding: 3px 8px;
       font-size: 15px;
-      border: 1px solid #3f3f46;
-      background: rgba(10, 10, 12, 0.75);
-      color: #52525b;
+      border: 1px solid #474d33;
+      background: rgba(16, 19, 10, 0.82);
+      color: #6b724e;
       border-radius: 2px;
     }
 
     .key-slot.collected {
-      border-color: #b91c1c;
-      color: #fca5a5;
-      background: rgba(69, 10, 10, 0.6);
-      box-shadow: 0 0 8px rgba(185, 28, 28, 0.35);
+      border-color: #dc2626;
+      color: #fecaca;
+      background: rgba(85, 16, 16, 0.72);
+      box-shadow: 0 0 8px rgba(220, 38, 38, 0.4);
     }
 
     /* Radio Static Wave Widget */
@@ -172,15 +211,15 @@
       display: flex;
       flex-direction: column;
       align-items: flex-end;
-      background: rgba(5, 6, 6, 0.72);
-      border: 1px solid #27272a;
+      background: rgba(14, 17, 8, 0.8);
+      border: 1px solid #444b30;
       padding: 6px 10px;
       border-radius: 3px;
     }
 
     .radio-label {
       font-size: 15px;
-      color: #a1a1aa;
+      color: #b8be98;
       letter-spacing: 1px;
       margin-bottom: 3px;
     }
@@ -188,11 +227,11 @@
     #radio-canvas {
       width: 110px;
       height: 26px;
-      background: #090b0a;
-      border: 1px solid #1f2421;
+      background: #0d1007;
+      border: 1px solid #2e341f;
     }
 
-    /* Bottom Status Bar */
+    /* Bottom Status Bar (Resident Evil ECG / Classic Status Vibe) */
     #hud-bottom {
       position: absolute;
       bottom: 18px;
@@ -204,28 +243,36 @@
       pointer-events: none;
       z-index: 20;
       font-family: 'VT323', monospace;
-      text-shadow: 2px 2px 0px #000;
+      text-shadow: 2px 2px 0px #080a04;
     }
 
     .status-panel {
       display: flex;
       gap: 18px;
-      background: rgba(5, 5, 7, 0.72);
-      border: 1px solid #27272a;
+      background: rgba(14, 17, 8, 0.82);
+      border: 1px solid #444b30;
       padding: 8px 14px;
       border-radius: 3px;
       font-size: 20px;
     }
 
     .stat-item span.label {
-      color: #71717a;
+      color: #8b926b;
       font-size: 16px;
       display: block;
     }
 
     .stat-val {
-      color: #e4e4e7;
+      color: #dfe3c5;
       font-weight: bold;
+    }
+
+    .stat-val.fine {
+      color: #a3e635;
+    }
+
+    .stat-val.caution {
+      color: #facc15;
     }
 
     .stat-val.danger {
@@ -239,9 +286,9 @@
       left: 50%;
       transform: translateX(-50%);
       width: min(680px, 92vw);
-      background: rgba(6, 6, 8, 0.92);
-      border: 2px solid #52525b;
-      box-shadow: 0 0 25px rgba(0, 0, 0, 0.95), inset 0 0 12px rgba(127, 29, 29, 0.25);
+      background: rgba(13, 16, 8, 0.94);
+      border: 2px solid #646d47;
+      box-shadow: 0 0 28px rgba(0, 0, 0, 0.92), inset 0 0 14px rgba(138, 148, 72, 0.18);
       padding: 12px 16px;
       display: none;
       gap: 14px;
@@ -257,8 +304,8 @@
     #portrait-canvas {
       width: 64px;
       height: 64px;
-      border: 1px solid #71717a;
-      background: #111;
+      border: 1px solid #7c8659;
+      background: #14180c;
       flex-shrink: 0;
       image-rendering: pixelated;
     }
@@ -270,7 +317,7 @@
     .dialogue-speaker {
       font-family: 'VT323', monospace;
       font-size: 20px;
-      color: #ef4444;
+      color: #f87171;
       letter-spacing: 1px;
       margin-bottom: 2px;
     }
@@ -279,14 +326,14 @@
       font-family: 'Share Tech Mono', monospace;
       font-size: 14px;
       line-height: 1.45;
-      color: #e4e4e7;
+      color: #e4e7cf;
       min-height: 40px;
     }
 
     .dialogue-hint {
       font-family: 'VT323', monospace;
       font-size: 15px;
-      color: #71717a;
+      color: #8b926b;
       text-align: right;
       margin-top: 4px;
     }
@@ -294,12 +341,12 @@
     /* Interaction Prompt Floating Badge */
     #interact-prompt {
       position: absolute;
-      top: 42%;
+      top: 40%;
       left: 50%;
       transform: translate(-50%, -50%);
-      background: rgba(0, 0, 0, 0.82);
-      border: 1px solid #a1a1aa;
-      color: #f4f4f5;
+      background: rgba(14, 17, 8, 0.88);
+      border: 1px solid #a3ad78;
+      color: #eef1dc;
       font-family: 'VT323', monospace;
       font-size: 20px;
       padding: 4px 12px;
@@ -313,7 +360,7 @@
     .overlay-screen {
       position: absolute;
       inset: 0;
-      background: rgba(3, 3, 4, 0.94);
+      background: rgba(11, 13, 6, 0.94);
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -332,33 +379,33 @@
       font-size: clamp(42px, 7vw, 76px);
       color: #dc2626;
       letter-spacing: 6px;
-      text-shadow: 3px 0 #0ff, -3px 0 #f00;
+      text-shadow: 3px 0 #a3e635, -3px 0 #7f1d1d;
       margin-bottom: 8px;
     }
 
     .game-subtitle {
       font-size: 14px;
-      color: #a1a1aa;
-      max-width: 560px;
+      color: #c5caa6;
+      max-width: 580px;
       line-height: 1.6;
       margin-bottom: 24px;
     }
 
     .controls-grid {
       display: grid;
-      grid-template-columns: repeat(2, minmax(140px, 220px));
+      grid-template-columns: repeat(2, minmax(140px, 235px));
       gap: 8px 16px;
       text-align: left;
-      background: rgba(15, 15, 18, 0.85);
-      border: 1px solid #27272a;
+      background: rgba(20, 24, 12, 0.9);
+      border: 1px solid #484f33;
       padding: 14px 18px;
       margin-bottom: 26px;
       font-size: 13px;
-      color: #d4d4d8;
+      color: #dfe3c5;
     }
 
     .controls-grid b {
-      color: #f87171;
+      color: #bef264;
     }
 
     .retro-btn {
@@ -366,21 +413,21 @@
       font-size: 26px;
       letter-spacing: 3px;
       padding: 10px 32px;
-      background: #18181b;
-      color: #f4f4f5;
+      background: #1b2010;
+      color: #eef1dc;
       border: 2px solid #dc2626;
       cursor: pointer;
       transition: all 0.15s ease;
-      box-shadow: 0 0 15px rgba(220, 38, 38, 0.3);
+      box-shadow: 0 0 18px rgba(220, 38, 38, 0.35);
     }
 
     .retro-btn:hover {
       background: #991b1b;
       color: #fff;
-      box-shadow: 0 0 25px rgba(220, 38, 38, 0.75);
+      box-shadow: 0 0 28px rgba(220, 38, 38, 0.75);
     }
 
-    /* Mobile Touch Controls (auto-shown on coarse pointer / small screens) */
+    /* Mobile Touch Controls */
     #mobile-controls {
       position: absolute;
       inset: 0;
@@ -406,8 +453,8 @@
       width: 110px;
       height: 110px;
       border-radius: 50%;
-      border: 1px dashed rgba(255,255,255,0.22);
-      background: rgba(255,255,255,0.03);
+      border: 1px dashed rgba(190, 242, 100, 0.3);
+      background: rgba(20, 24, 12, 0.25);
       pointer-events: auto;
       touch-action: none;
     }
@@ -420,7 +467,7 @@
       height: 42px;
       margin: -21px 0 0 -21px;
       border-radius: 50%;
-      background: rgba(220, 38, 38, 0.45);
+      background: rgba(220, 38, 38, 0.5);
       border: 1px solid #ef4444;
     }
 
@@ -436,9 +483,9 @@
 
     .mob-btn {
       height: 54px;
-      background: rgba(15, 15, 18, 0.8);
-      border: 1px solid #52525b;
-      color: #e4e4e7;
+      background: rgba(18, 22, 11, 0.85);
+      border: 1px solid #5c6642;
+      color: #e4e7cf;
       font-family: 'VT323', monospace;
       font-size: 17px;
       border-radius: 4px;
@@ -453,10 +500,12 @@
 </head>
 <body>
   <div id="game-container">
-    <canvas id="gameCanvas"></canvas>
+    <div id="three-mount"></div>
 
-    <!-- Post-Processing VHS Layers -->
+    <!-- Murky Yellow-Green Bad Parenting Tone + VHS Overlays -->
+    <div class="vhs-color-grade"></div>
     <div class="vhs-scanlines"></div>
+    <div class="vhs-tracking-line"></div>
     <div class="vhs-vignette"></div>
     <div id="damage-vignette"></div>
     <div id="ghost-distortion"></div>
@@ -466,10 +515,10 @@
       <div>
         <div class="rec-badge">
           <div class="rec-dot"></div>
-          <span>VHS-REC // 02:44:19</span>
+          <span>VHS-SP // CAM-04</span>
         </div>
         <div class="objective-box" id="objective-text">
-          MISI: Cari Elena di sayap isolasi. Temukan 3 kunci akses.
+          MISI: Cari Elena di ruang isolasi. Temukan 3 kunci akses.
         </div>
         <div class="inventory-strip">
           <div class="key-slot" id="slot-keycard">[1] BLOODY KEYCARD</div>
@@ -502,7 +551,7 @@
       <div class="status-panel">
         <div class="stat-item">
           <span class="label">KONDISI</span>
-          <span class="stat-val" id="hud-hp">FINE (100%)</span>
+          <span class="stat-val fine" id="hud-hp">FINE (100%)</span>
         </div>
         <div class="stat-item">
           <span class="label">BATERAI SENTER [F]</span>
@@ -514,8 +563,8 @@
         </div>
       </div>
 
-      <div class="status-panel" style="font-size: 16px; color: #a1a1aa;">
-        <div>[WASD] GERAK &nbsp;|&nbsp; [KLIK KANAN] BIDIK &nbsp;|&nbsp; [KLIK KIRI] TEMBAK &nbsp;|&nbsp; [R] RELOAD &nbsp;|&nbsp; [E] INTERAKSI</div>
+      <div class="status-panel" style="font-size: 16px; color: #b4ba93;">
+        <div>[WASD] GERAK &nbsp;|&nbsp; [KLIK KANAN] BIDIK &nbsp;|&nbsp; [KLIK KIRI] TEMBAK &nbsp;|&nbsp; [Q/C] SUDUT KAMERA &nbsp;|&nbsp; [E] AKSI</div>
       </div>
     </div>
 
@@ -534,18 +583,18 @@
     <div class="overlay-screen" id="start-screen">
       <div class="game-title">CRIMSON FREQUENCY</div>
       <div class="game-subtitle">
-        Sinyal terakhir dari partner-mu, <b>Elena</b>, terputus di dalam Fasilitas Medis Sektor-4.
-        Kabut pekat dan darah segar menyelimuti koridor labirin. Dengarkan statis radio—ia selalu berbunyi sebelum <i>sesuatu</i> muncul dari kegelapan.
+        Sinyal terakhir partner-mu, <b>Elena</b>, terputus di balik lorong lembap Fasilitas Sektor-4.
+        Lampu neon hijau kekuningan yang sekarat menerangi bercak darah di lantai. Perhatikan statis radio sebelum entitas muncul dari kabut.
       </div>
       <div class="controls-grid">
         <div><b>WASD / Panah:</b> Bergerak</div>
-        <div><b>Mouse:</b> Arah Senter</div>
+        <div><b>Mouse:</b> Arah Senter 3D</div>
         <div><b>Klik Kanan (Tahan):</b> Bidik Senjata</div>
         <div><b>Klik Kiri:</b> Tembak (Saat Bidik)</div>
         <div><b>F:</b> Nyala/Matikan Senter</div>
         <div><b>E:</b> Buka Pintu / Ambil Item</div>
         <div><b>R:</b> Isi Ulang Peluru</div>
-        <div><b>Tips Ghost:</b> Sorot Senter untuk Usir!</div>
+        <div><b>Q / C:</b> Putar Sudut Kamera RE</div>
       </div>
       <button class="retro-btn" id="btn-start">MULAI REKAMAN [PLAY]</button>
     </div>
@@ -554,7 +603,7 @@
     <div class="overlay-screen hidden" id="end-screen">
       <div class="game-title" id="end-title">SIGNAL LOST</div>
       <div class="game-subtitle" id="end-desc">
-        Kegelapan menelanmu sebelum sempat mencapai ruang isolasi.
+        Kabut kelam menelanmu sebelum sempat mencapai ruang isolasi.
       </div>
       <button class="retro-btn" id="btn-restart">PUTAR ULANG KASET</button>
     </div>
@@ -563,13 +612,11 @@
   <script>
     /**
      * ============================================================================
-     * CRIMSON FREQUENCY - SURVIVAL HORROR PROTOTYPE
-     * Inspirasi: Crow Country, Bad Parenting, Silent Hill
-     * Fitur:
-     * - Top-Down 2.5D Pseudo-Depth Rendering & Raycast Cone Flashlight
-     * - Procedural Web Audio API (Radio Static Proximity, Ambient Drone, Stingers)
-     * - Dual-Threat AI: Zombie (Physical) & Gloomy Bloody Ghost (Supernatural)
-     * - Scripted Jumpscares (Door Burst & Falling Props) + Narrative Dialogue
+     * CRIMSON FREQUENCY - THREE.JS PS1 / VHS SURVIVAL HORROR
+     * - 3D Low-Poly Angled Top-Down / Classic Resident Evil Camera Perspective
+     * - Sickly Yellow-Green "Bad Parenting" Lighting + Gloomy Fog + Flickering Neon
+     * - 3D SpotLight Flashlight with Shadow Casting + Raycast Laser Sight
+     * - Procedural Web Audio API (Radio Static Proximity, Drone, Jumpscare Stingers)
      * ============================================================================
      */
 
@@ -580,8 +627,6 @@
         this.masterGain = null;
         this.staticGain = null;
         this.staticFilter = null;
-        this.droneOsc1 = null;
-        this.droneOsc2 = null;
         this.initialized = false;
         this.lastStepTime = 0;
         this.lastWhisperTime = 0;
@@ -596,30 +641,30 @@
         this.masterGain.gain.value = 0.65;
         this.masterGain.connect(this.ctx.destination);
 
-        // 1. Dark Ambient Sub-Drone (Bad Parenting / Silent Hill oppressiveness)
-        this.droneOsc1 = this.ctx.createOscillator();
-        this.droneOsc2 = this.ctx.createOscillator();
+        // Dark Oppressive Sub-Drone (Bad Parenting / Silent Hill atmosphere)
+        const osc1 = this.ctx.createOscillator();
+        const osc2 = this.ctx.createOscillator();
         const droneGain = this.ctx.createGain();
         const droneFilter = this.ctx.createBiquadFilter();
 
-        this.droneOsc1.type = 'sawtooth';
-        this.droneOsc1.frequency.value = 38; // Low C# sub-bass
-        this.droneOsc2.type = 'triangle';
-        this.droneOsc2.frequency.value = 41.2; // Dissonant beating frequency
+        osc1.type = 'sawtooth';
+        osc1.frequency.value = 40;
+        osc2.type = 'triangle';
+        osc2.frequency.value = 43.5;
 
         droneFilter.type = 'lowpass';
-        droneFilter.frequency.value = 110;
-        droneGain.gain.value = 0.22;
+        droneFilter.frequency.value = 115;
+        droneGain.gain.value = 0.2;
 
-        this.droneOsc1.connect(droneFilter);
-        this.droneOsc2.connect(droneFilter);
+        osc1.connect(droneFilter);
+        osc2.connect(droneFilter);
         droneFilter.connect(droneGain);
         droneGain.connect(this.masterGain);
 
-        this.droneOsc1.start();
-        this.droneOsc2.start();
+        osc1.start();
+        osc2.start();
 
-        // 2. Radio Static Noise Generator (Looping White/Pink Noise Buffer)
+        // Radio Static Noise Buffer
         const bufferSize = this.ctx.sampleRate * 2;
         const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
         const data = noiseBuffer.getChannelData(0);
@@ -642,7 +687,7 @@
         this.staticFilter.Q.value = 1.8;
 
         this.staticGain = this.ctx.createGain();
-        this.staticGain.gain.value = 0.005; // Very faint idle crackle
+        this.staticGain.gain.value = 0.005;
 
         noiseSource.connect(this.staticFilter);
         this.staticFilter.connect(this.staticGain);
@@ -655,16 +700,13 @@
       updateRadioStatic(threatIntensity, isGhostNear) {
         if (!this.initialized) return;
         const now = this.ctx.currentTime;
-        // Random crackle modulation
         const crackle = Math.random() > 0.35 ? 1 : 0.25;
-        const targetGain = Math.min(0.45, 0.004 + Math.pow(threatIntensity, 1.6) * 0.38 * crackle);
+        const targetGain = Math.min(0.45, 0.004 + Math.pow(threatIntensity, 1.55) * 0.38 * crackle);
         this.staticGain.gain.setTargetAtTime(targetGain, now, 0.06);
 
-        // Shift radio frequency erratically if Ghost is close
         const baseFreq = isGhostNear ? 2200 + Math.sin(now * 28) * 900 : 1200 + threatIntensity * 800;
         this.staticFilter.frequency.setTargetAtTime(baseFreq, now, 0.05);
 
-        // Occasional distorted ghost whisper when Ghost is nearby
         if (isGhostNear && threatIntensity > 0.45 && now - this.lastWhisperTime > 4.2) {
           this.lastWhisperTime = now;
           this.playGhostWhisper();
@@ -680,11 +722,11 @@
         const gain = this.ctx.createGain();
 
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(310, now);
-        osc.frequency.exponentialRampToValueAtTime(145, now + 1.1);
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.exponentialRampToValueAtTime(140, now + 1.1);
 
         mod.type = 'sawtooth';
-        mod.frequency.value = 34;
+        mod.frequency.value = 32;
         modGain.gain.value = 95;
 
         gain.gain.setValueAtTime(0.001, now);
@@ -745,7 +787,6 @@
         if (!this.initialized) return;
         const now = this.ctx.currentTime;
 
-        // Heavy punch + noise burst
         const osc = this.ctx.createOscillator();
         const oscGain = this.ctx.createGain();
         osc.type = 'sawtooth';
@@ -760,7 +801,6 @@
         osc.start(now);
         osc.stop(now + 0.26);
 
-        // Gunshot blast noise
         const bufferSize = this.ctx.sampleRate * 0.3;
         const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
         const data = buffer.getChannelData(0);
@@ -787,8 +827,6 @@
       playJumpscareStinger(type = 'door') {
         if (!this.initialized) return;
         const now = this.ctx.currentTime;
-
-        // Sharp dissonant horror string/brass slam
         const freqs = type === 'door' ? [110, 116.5, 233, 466] : [160, 225, 318];
         freqs.forEach((f) => {
           const osc = this.ctx.createOscillator();
@@ -825,14 +863,10 @@
       }
     }
 
-    // --- 2. LEVEL DESIGN & MAZE ARCHITECTURE ---
-    // Legend:
-    // 1 = Concrete Wall (Blocks Sight & Walk)
-    // 0 = Corridor Floor
-    // 2 = Normal Closed Door (Can open quietly)
-    // 3 = Trapped Jumpscare Door (Bursts open violently when approached!)
-    // 4 = Final Isolation Door (Requires 3 Key Items)
-    const TILE_SIZE = 54;
+    // --- 2. LEVEL ARCHITECTURE (WORLD UNITS IN 3D METERS) ---
+    // 1 Tile = 3.0 Three.js units
+    const TILE = 3.0;
+    const WALL_HEIGHT = 2.8;
     const MAP_GRID = [
       [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
       [1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,1],
@@ -861,9 +895,8 @@
     const ROWS = MAP_GRID.length;
     const COLS = MAP_GRID[0].length;
 
-    // --- 3. GAME STATE & ENTITIES ---
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
+    // --- 3. THREE.JS SCENE, CAMERA & MURKY YELLOW-GREEN LIGHTING ---
+    const mountEl = document.getElementById('three-mount');
     const radioCanvas = document.getElementById('radio-canvas');
     const radioCtx = radioCanvas.getContext('2d');
     const portraitCanvas = document.getElementById('portrait-canvas');
@@ -871,25 +904,128 @@
 
     const audio = new HorrorAudioEngine();
 
+    const scene = new THREE.Scene();
+    // Murky yellow-green gloomy fog (Bad Parenting / Silent Hill sickly palette)
+    const FOG_COLOR = 0x262b14;
+    scene.background = new THREE.Color(0x16190b);
+    scene.fog = new THREE.FogExp2(FOG_COLOR, 0.042);
+
+    const camera = new THREE.PerspectiveCamera(44, window.innerWidth / window.innerHeight, 0.1, 70);
+    // Resident Evil Classic / Crow Country Angled Top-Down Camera presets (rotatable with Q/C!)
+    const cameraAngles = [
+      { dx: 0, dy: 13.5, dz: 10.5 },
+      { dx: 10.5, dy: 13.5, dz: 8.5 },
+      { dx: -10.5, dy: 13.5, dz: 8.5 }
+    ];
+    let camPresetIdx = 0;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.BasicShadowMap; // Crisp PS1 blocky shadows
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.25; // Brighter readability while preserving gloomy mood
+    mountEl.appendChild(renderer.domElement);
+
+    // Procedural PS1-style Pixelated Textures (Murky Yellow-Green Plaster & Grimy Tile Floor)
+    function createGrimyFloorTexture() {
+      const c = document.createElement('canvas');
+      c.width = 64;
+      c.height = 64;
+      const g = c.getContext('2d');
+      g.fillStyle = '#5a6338'; // Murky yellow-olive base
+      g.fillRect(0, 0, 64, 64);
+
+      // Tile grid
+      g.strokeStyle = '#383e21';
+      g.lineWidth = 2;
+      g.strokeRect(1, 1, 30, 30);
+      g.strokeRect(33, 1, 30, 30);
+      g.strokeRect(1, 33, 30, 30);
+      g.strokeRect(33, 33, 30, 30);
+
+      // PS1 grain & grime speckles
+      for (let i = 0; i < 260; i++) {
+        const shade = Math.random() > 0.5 ? 'rgba(25,28,12,0.22)' : 'rgba(175,185,105,0.12)';
+        g.fillStyle = shade;
+        g.fillRect(Math.random() * 64, Math.random() * 64, 2, 2);
+      }
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(COLS, ROWS);
+      tex.magFilter = THREE.NearestFilter;
+      tex.minFilter = THREE.NearestFilter;
+      return tex;
+    }
+
+    function createMurkyWallTexture() {
+      const c = document.createElement('canvas');
+      c.width = 64;
+      c.height = 64;
+      const g = c.getContext('2d');
+      // Sickly yellowish-green damp wallpaper/concrete
+      g.fillStyle = '#6c7542';
+      g.fillRect(0, 0, 64, 64);
+
+      // Lower wainscoting trim (Bad Parenting house/corridor vibe)
+      g.fillStyle = '#3b4222';
+      g.fillRect(0, 42, 64, 22);
+      g.fillStyle = '#252a14';
+      g.fillRect(0, 40, 64, 3);
+
+      // Vertical damp stains
+      for (let i = 0; i < 24; i++) {
+        g.fillStyle = 'rgba(28, 32, 14, 0.25)';
+        g.fillRect(Math.random() * 64, Math.random() * 40, 2, 10 + Math.random() * 18);
+      }
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.magFilter = THREE.NearestFilter;
+      tex.minFilter = THREE.NearestFilter;
+      return tex;
+    }
+
+    // Lighting Setup: Brighter Murky Yellow-Green Ambient + Hemisphere + Flickering Corridor Lamps + Player SpotLight
+    const hemiLight = new THREE.HemisphereLight(0xbec979, 0x343b1c, 0.95);
+    scene.add(hemiLight);
+
+    const dirLight = new THREE.DirectionalLight(0xcfd984, 0.42);
+    dirLight.position.set(18, 32, 22);
+    scene.add(dirLight);
+
+    // Player Flashlight (3D Cone SpotLight)
+    const flashLight = new THREE.SpotLight(0xf6f9d2, 2.8, 22, Math.PI / 5.2, 0.45, 1.1);
+    flashLight.castShadow = true;
+    flashLight.shadow.mapSize.width = 512;
+    flashLight.shadow.mapSize.height = 512;
+    scene.add(flashLight);
+    scene.add(flashLight.target);
+
+    // Subtle personal fill light around player (Resident Evil classic readability)
+    const playerAuraLight = new THREE.PointLight(0xb7c272, 0.75, 7.5);
+    scene.add(playerAuraLight);
+
+    // --- 4. GAME STATE & 3D ENTITY CONTAINERS ---
     let gameState = 'START'; // START, PLAYING, DIALOGUE, ENDED
     let screenShake = 0;
     let frameCount = 0;
     let lastTime = 0;
 
     const keys = {};
-    const mouse = { x: 0, y: 0, worldX: 0, worldY: 0, rightDown: false };
+    const mouse = { ndcX: 0, ndcY: 0, rightDown: false };
     const joystick = { active: false, dx: 0, dy: 0 };
+    const raycaster = new THREE.Raycaster();
+    const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.9);
 
-    // Player object
     const player = {
-      x: 2.5 * TILE_SIZE,
-      y: 2.5 * TILE_SIZE,
-      radius: 13,
+      x: 2.5 * TILE,
+      z: 2.5 * TILE,
+      radius: 0.42,
       angle: 0,
-      speed: 128,
-      aimSpeed: 55,
+      speed: 5.2,
+      aimSpeed: 2.3,
       hp: 100,
-      maxHp: 100,
       battery: 100,
       flashlightOn: true,
       flickerTimer: 0,
@@ -898,26 +1034,189 @@
       maxMag: 12,
       shootCooldown: 0,
       muzzleFlash: 0,
+      walkCycle: 0,
       keysCollected: {
         keycard: false,
         crowbar: false,
         cassette: false
-      }
+      },
+      mesh: null,
+      leftLeg: null,
+      rightLeg: null,
+      rightArm: null,
+      laserLine: null,
+      muzzleLight: null
     };
 
-    const camera = { x: player.x, y: player.y };
+    const camLookTarget = new THREE.Vector3(player.x, 0.8, player.z);
+    const camPosCurrent = new THREE.Vector3(player.x, 13.5, player.z + 10.5);
 
-    // Dynamic World Lists
+    let levelGroup = new THREE.Group();
+    scene.add(levelGroup);
+
     let doors = [];
     let zombies = [];
     let ghosts = [];
     let items = [];
-    let bloodDecals = [];
     let fallingProps = [];
+    let flickeringLamps = [];
     let particles = [];
     let partnerNPC = null;
 
-    // Dialogue Queue System
+    // --- 5. LOW-POLY PS1 CHARACTER & ENTITY BUILDERS ---
+    function buildPlayerMesh() {
+      const group = new THREE.Group();
+
+      const coatMat = new THREE.MeshLambertMaterial({ color: 0x4b5338 });
+      const pantsMat = new THREE.MeshLambertMaterial({ color: 0x26291e });
+      const skinMat = new THREE.MeshLambertMaterial({ color: 0xd9cbb8 });
+      const hairMat = new THREE.MeshLambertMaterial({ color: 0x1e1b18 });
+
+      // Torso
+      const torso = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.78, 0.36), coatMat);
+      torso.position.y = 0.95;
+      torso.castShadow = true;
+      group.add(torso);
+
+      // Head
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.42), skinMat);
+      head.position.y = 1.6;
+      head.castShadow = true;
+      group.add(head);
+
+      const hair = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.18, 0.45), hairMat);
+      hair.position.y = 1.78;
+      group.add(hair);
+
+      // Legs (Animated during walk)
+      const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.56, 0.24), pantsMat);
+      leftLeg.position.set(-0.16, 0.28, 0);
+      group.add(leftLeg);
+
+      const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.56, 0.24), pantsMat);
+      rightLeg.position.set(0.16, 0.28, 0);
+      group.add(rightLeg);
+
+      // Right Arm + Handgun
+      const rightArm = new THREE.Group();
+      rightArm.position.set(0.38, 1.18, 0);
+      const armMesh = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.48), coatMat);
+      armMesh.position.z = 0.2;
+      const gunMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.1, 0.14, 0.28),
+        new THREE.MeshLambertMaterial({ color: 0x18181b })
+      );
+      gunMesh.position.set(0, 0.02, 0.46);
+      rightArm.add(armMesh, gunMesh);
+      group.add(rightArm);
+
+      // Red Laser Sight (Resident Evil 4 / Crow Country style)
+      const laserGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0.38, 1.2, 0.55),
+        new THREE.Vector3(0.38, 1.2, 14)
+      ]);
+      const laserMat = new THREE.LineBasicMaterial({ color: 0xff1e1e, transparent: true, opacity: 0.85 });
+      const laserLine = new THREE.Line(laserGeo, laserMat);
+      laserLine.visible = false;
+      group.add(laserLine);
+
+      const muzzleLight = new THREE.PointLight(0xfef08a, 0, 6);
+      muzzleLight.position.set(0.38, 1.25, 0.8);
+      group.add(muzzleLight);
+
+      player.mesh = group;
+      player.leftLeg = leftLeg;
+      player.rightLeg = rightLeg;
+      player.rightArm = rightArm;
+      player.laserLine = laserLine;
+      player.muzzleLight = muzzleLight;
+      levelGroup.add(group);
+    }
+
+    function createZombieMesh() {
+      const group = new THREE.Group();
+      const bodyMat = new THREE.MeshLambertMaterial({ color: 0x4c5942 });
+      const bloodMat = new THREE.MeshLambertMaterial({ color: 0x8f1115 });
+      const skinMat = new THREE.MeshLambertMaterial({ color: 0x8c9678 });
+
+      const torso = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.82, 0.38), bodyMat);
+      torso.position.y = 0.92;
+      torso.rotation.x = 0.22; // Creepy hunched posture
+      torso.castShadow = true;
+      group.add(torso);
+
+      const bloodChest = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.42, 0.4), bloodMat);
+      bloodChest.position.set(0.05, 0.96, 0.02);
+      group.add(bloodChest);
+
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.42), skinMat);
+      head.position.set(0, 1.54, 0.14);
+      head.rotation.z = 0.2;
+      head.castShadow = true;
+      group.add(head);
+
+      // Outstretched zombie arms
+      const armL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.65), skinMat);
+      armL.position.set(-0.4, 1.15, 0.34);
+      const armR = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.65), bloodMat);
+      armR.position.set(0.4, 1.12, 0.36);
+      group.add(armL, armR);
+
+      const legs = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.54, 0.28), new THREE.MeshLambertMaterial({ color: 0x272b1e }));
+      legs.position.y = 0.27;
+      group.add(legs);
+
+      return group;
+    }
+
+    function createGhostMesh() {
+      const group = new THREE.Group();
+
+      // Gloomy dark tattered gown soaked in blood
+      const gownMat = new THREE.MeshLambertMaterial({
+        color: 0x1c1e17,
+        transparent: true,
+        opacity: 0.88
+      });
+      const bloodMat = new THREE.MeshLambertMaterial({
+        color: 0x991115,
+        emissive: 0x3b0406,
+        transparent: true,
+        opacity: 0.9
+      });
+      const paleMat = new THREE.MeshLambertMaterial({
+        color: 0xd4d8c8,
+        emissive: 0x222618,
+        transparent: true,
+        opacity: 0.92
+      });
+
+      const body = new THREE.Mesh(new THREE.ConeGeometry(0.52, 1.65, 6), gownMat);
+      body.position.y = 1.05;
+      group.add(body);
+
+      const bloodStain = new THREE.Mesh(new THREE.ConeGeometry(0.46, 0.95, 6), bloodMat);
+      bloodStain.position.y = 0.85;
+      group.add(bloodStain);
+
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.44, 0.4), paleMat);
+      head.position.y = 1.82;
+      group.add(head);
+
+      // Long unkempt black hair covering face
+      const hairBack = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.85, 0.46), new THREE.MeshLambertMaterial({ color: 0x090a07 }));
+      hairBack.position.set(0, 1.66, -0.05);
+      group.add(hairBack);
+
+      // Eerie crimson aura light attached to ghost
+      const ghostLight = new THREE.PointLight(0xb91c1c, 0.9, 5.5);
+      ghostLight.position.y = 1.4;
+      group.add(ghostLight);
+
+      return group;
+    }
+
+    // --- 6. DIALOGUE SYSTEM ---
     let dialogueQueue = [];
     let currentDialogue = null;
     let typedChars = 0;
@@ -925,9 +1224,7 @@
 
     function queueDialogue(speaker, portraitType, text, onComplete = null) {
       dialogueQueue.push({ speaker, portraitType, text, onComplete });
-      if (!currentDialogue) {
-        advanceDialogue();
-      }
+      if (!currentDialogue) advanceDialogue();
     }
 
     function advanceDialogue() {
@@ -961,30 +1258,27 @@
     }
 
     function drawRetroPortrait(type) {
-      portraitCtx.fillStyle = '#09090b';
+      portraitCtx.fillStyle = '#12160a';
       portraitCtx.fillRect(0, 0, 64, 64);
 
-      // Scanline noise inside portrait
       for (let y = 0; y < 64; y += 2) {
-        portraitCtx.fillStyle = 'rgba(255,255,255,0.03)';
+        portraitCtx.fillStyle = 'rgba(190, 205, 110, 0.05)';
         portraitCtx.fillRect(0, y, 64, 1);
       }
 
       if (type === 'ELENA') {
-        // Pale face, dark hair, bloody tear/scratch
-        portraitCtx.fillStyle = '#18181b';
-        portraitCtx.fillRect(14, 10, 36, 46); // Hair
-        portraitCtx.fillStyle = '#d4d4d8';
-        portraitCtx.fillRect(20, 18, 24, 28); // Face
-        portraitCtx.fillStyle = '#09090b';
-        portraitCtx.fillRect(24, 27, 5, 4); // Left eye
-        portraitCtx.fillRect(35, 27, 5, 4); // Right eye
+        portraitCtx.fillStyle = '#1a1d12';
+        portraitCtx.fillRect(14, 10, 36, 46);
+        portraitCtx.fillStyle = '#d4d8bf';
+        portraitCtx.fillRect(20, 18, 24, 28);
+        portraitCtx.fillStyle = '#0d1007';
+        portraitCtx.fillRect(24, 27, 5, 4);
+        portraitCtx.fillRect(35, 27, 5, 4);
         portraitCtx.fillStyle = '#dc2626';
-        portraitCtx.fillRect(37, 31, 2, 11); // Blood streak
-        portraitCtx.fillRect(26, 40, 12, 2); // Mouth
+        portraitCtx.fillRect(37, 31, 2, 11);
+        portraitCtx.fillRect(26, 40, 12, 2);
       } else if (type === 'RADIO') {
-        // Walkie-talkie waveform
-        portraitCtx.strokeStyle = '#ef4444';
+        portraitCtx.strokeStyle = '#bef264';
         portraitCtx.lineWidth = 2;
         portraitCtx.beginPath();
         for (let x = 4; x < 60; x += 4) {
@@ -994,10 +1288,9 @@
         }
         portraitCtx.stroke();
       } else if (type === 'GHOST') {
-        // Gloomy bloody ghost face
-        portraitCtx.fillStyle = '#000';
+        portraitCtx.fillStyle = '#090b05';
         portraitCtx.fillRect(0, 0, 64, 64);
-        portraitCtx.fillStyle = '#a1a1aa';
+        portraitCtx.fillStyle = '#b4b99d';
         portraitCtx.fillRect(22, 16, 20, 30);
         portraitCtx.fillStyle = '#7f1d1d';
         portraitCtx.fillRect(24, 24, 6, 7);
@@ -1007,224 +1300,336 @@
       }
     }
 
-    // --- 4. WORLD INITIALIZATION ---
+    // --- 7. WORLD INITIALIZATION ---
     function initWorld() {
+      // Clear previous scene meshes
+      while (levelGroup.children.length > 0) {
+        levelGroup.remove(levelGroup.children[0]);
+      }
+
       doors = [];
       zombies = [];
       ghosts = [];
       items = [];
-      bloodDecals = [];
       fallingProps = [];
+      flickeringLamps = [];
       particles = [];
 
-      // Parse Doors from Grid
+      // 1. Floor Plane with Murky Yellow-Green Tile Texture
+      const floorGeo = new THREE.PlaneGeometry(COLS * TILE, ROWS * TILE);
+      const floorMat = new THREE.MeshLambertMaterial({ map: createGrimyFloorTexture() });
+      const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+      floorMesh.rotation.x = -Math.PI / 2;
+      floorMesh.position.set((COLS * TILE) / 2, 0, (ROWS * TILE) / 2);
+      floorMesh.receiveShadow = true;
+      levelGroup.add(floorMesh);
+
+      // 2. Walls & Doors
+      const wallMat = new THREE.MeshLambertMaterial({ map: createMurkyWallTexture() });
+      const wallGeo = new THREE.BoxGeometry(TILE, WALL_HEIGHT, TILE);
+
+      const normalDoorMat = new THREE.MeshLambertMaterial({ color: 0x4f4733 });
+      const finalDoorMat = new THREE.MeshLambertMaterial({ color: 0x7f1d1d });
+
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
           const cell = MAP_GRID[r][c];
-          if (cell === 2 || cell === 3 || cell === 4) {
+          const wx = (c + 0.5) * TILE;
+          const wz = (r + 0.5) * TILE;
+
+          if (cell === 1) {
+            const wall = new THREE.Mesh(wallGeo, wallMat);
+            wall.position.set(wx, WALL_HEIGHT / 2, wz);
+            wall.castShadow = true;
+            wall.receiveShadow = true;
+            levelGroup.add(wall);
+          } else if (cell === 2 || cell === 3 || cell === 4) {
+            const isFinal = cell === 4;
+            const doorPivot = new THREE.Group();
+            doorPivot.position.set(c * TILE, 0, wz);
+
+            const doorMesh = new THREE.Mesh(
+              new THREE.BoxGeometry(TILE, WALL_HEIGHT * 0.92, 0.25),
+              isFinal ? finalDoorMat : normalDoorMat
+            );
+            doorMesh.position.set(TILE / 2, (WALL_HEIGHT * 0.92) / 2, 0);
+            doorMesh.castShadow = true;
+            doorPivot.add(doorMesh);
+            levelGroup.add(doorPivot);
+
             doors.push({
               r,
               c,
-              x: c * TILE_SIZE + TILE_SIZE / 2,
-              y: r * TILE_SIZE + TILE_SIZE / 2,
-              type: cell === 3 ? 'TRAPPED' : cell === 4 ? 'FINAL' : 'NORMAL',
+              x: wx,
+              z: wz,
+              type: cell === 3 ? 'TRAPPED' : isFinal ? 'FINAL' : 'NORMAL',
               open: false,
-              openProgress: 0, // 0 to 1
-              triggered: false
+              openProgress: 0,
+              triggered: false,
+              mesh: doorPivot
             });
           }
         }
       }
 
-      // Reset Player
-      player.x = 2.5 * TILE_SIZE;
-      player.y = 2.5 * TILE_SIZE;
+      // 3. Murky Yellow-Green Flickering Ceiling Corridor Lamps (Bad Parenting atmosphere)
+      const lampPositions = [
+        { x: 2.5 * TILE, z: 2.5 * TILE },
+        { x: 11.5 * TILE, z: 5.5 * TILE },
+        { x: 19.5 * TILE, z: 2.5 * TILE },
+        { x: 5.5 * TILE, z: 8.5 * TILE },
+        { x: 15.5 * TILE, z: 11.5 * TILE },
+        { x: 4.5 * TILE, z: 15.5 * TILE },
+        { x: 19.5 * TILE, z: 16.5 * TILE }
+      ];
+
+      lampPositions.forEach((lp) => {
+        const light = new THREE.PointLight(0xc9d672, 1.05, 13.5, 1.6);
+        light.position.set(lp.x, 2.55, lp.z);
+        levelGroup.add(light);
+
+        // Visible glowing neon fixture
+        const bulb = new THREE.Mesh(
+          new THREE.BoxGeometry(0.9, 0.12, 0.26),
+          new THREE.MeshBasicMaterial({ color: 0xdfe896 })
+        );
+        bulb.position.set(lp.x, 2.75, lp.z);
+        levelGroup.add(bulb);
+
+        flickeringLamps.push({
+          light,
+          bulb,
+          baseIntensity: 1.05,
+          flickerOffset: Math.random() * 10
+        });
+      });
+
+      // 4. Bloody Floor Decals & Drag Trails
+      const bloodDecalMat = new THREE.MeshBasicMaterial({
+        color: 0x6e0b0e,
+        transparent: true,
+        opacity: 0.85,
+        depthWrite: false
+      });
+
+      for (let i = 0; i < 48; i++) {
+        const c = Math.floor(Math.random() * (COLS - 2)) + 1;
+        const r = Math.floor(Math.random() * (ROWS - 2)) + 1;
+        if (MAP_GRID[r][c] === 0) {
+          const isDrag = Math.random() > 0.5;
+          const decal = new THREE.Mesh(
+            new THREE.PlaneGeometry(isDrag ? 1.5 : 0.7, isDrag ? 0.42 : 0.7),
+            bloodDecalMat
+          );
+          decal.rotation.x = -Math.PI / 2;
+          decal.rotation.z = Math.random() * Math.PI;
+          decal.position.set(
+            (c + 0.25 + Math.random() * 0.5) * TILE,
+            0.015,
+            (r + 0.25 + Math.random() * 0.5) * TILE
+          );
+          levelGroup.add(decal);
+        }
+      }
+
+      // 5. Build Player
+      player.x = 2.5 * TILE;
+      player.z = 2.5 * TILE;
       player.hp = 100;
       player.battery = 100;
       player.flashlightOn = true;
       player.ammo = 12;
       player.reserveAmmo = 18;
       player.keysCollected = { keycard: false, crowbar: false, cassette: false };
-      camera.x = player.x;
-      camera.y = player.y;
+      buildPlayerMesh();
 
-      // Key Items placed at labyrinth dead-ends
-      items.push(
-        { x: 21.5 * TILE_SIZE, y: 2.5 * TILE_SIZE, type: 'keycard', label: 'BLOODY KEYCARD', collected: false },
-        { x: 4.5 * TILE_SIZE, y: 8.5 * TILE_SIZE, type: 'crowbar', label: 'RUSTY CROWBAR', collected: false },
-        { x: 21.5 * TILE_SIZE, y: 15.5 * TILE_SIZE, type: 'cassette', label: 'CASSETTE TAPE #04', collected: false },
-        // Supplies (Ammo & Batteries)
-        { x: 11.5 * TILE_SIZE, y: 1.5 * TILE_SIZE, type: 'ammo', label: '9MM BULLETS (+8)', collected: false },
-        { x: 1.5 * TILE_SIZE, y: 15.5 * TILE_SIZE, type: 'battery', label: 'ALKALINE BATTERY (+50%)', collected: false },
-        { x: 15.5 * TILE_SIZE, y: 9.5 * TILE_SIZE, type: 'medkit', label: 'BANDAGE (+40 HP)', collected: false },
-        { x: 12.5 * TILE_SIZE, y: 17.5 * TILE_SIZE, type: 'ammo', label: '9MM BULLETS (+8)', collected: false },
-        { x: 19.5 * TILE_SIZE, y: 13.5 * TILE_SIZE, type: 'battery', label: 'ALKALINE BATTERY (+50%)', collected: false }
-      );
+      camPosCurrent.set(player.x, 13.5, player.z + 10.5);
+      camLookTarget.set(player.x, 0.8, player.z);
 
-      // Scripted Falling Props Jumpscare Triggers
-      fallingProps.push(
-        {
-          triggerX: 7.5 * TILE_SIZE,
-          triggerY: 5.5 * TILE_SIZE,
-          propX: 7.5 * TILE_SIZE,
-          propY: 4.3 * TILE_SIZE,
-          name: 'RAK BESI BERKARAT',
-          triggered: false,
-          fallAnim: 0
-        },
-        {
-          triggerX: 13.5 * TILE_SIZE,
-          triggerY: 11.5 * TILE_SIZE,
-          propX: 13.5 * TILE_SIZE,
-          propY: 10.3 * TILE_SIZE,
-          name: 'TROLLEY BEDAH BERDARAH',
-          triggered: false,
-          fallAnim: 0
-        },
-        {
-          triggerX: 5.5 * TILE_SIZE,
-          triggerY: 17.5 * TILE_SIZE,
-          propX: 5.5 * TILE_SIZE,
-          propY: 16.3 * TILE_SIZE,
-          name: 'LEMRI ARSIP TUA',
-          triggered: false,
-          fallAnim: 0
-        }
-      );
+      // Reset UI key slots
+      ['slot-keycard', 'slot-crowbar', 'slot-cassette'].forEach((id) => {
+        document.getElementById(id).classList.remove('collected');
+      });
 
-      // Zombies (Physical Threats)
-      const zombieSpawns = [
-        { x: 13.5 * TILE_SIZE, y: 5.5 * TILE_SIZE },
-        { x: 19.5 * TILE_SIZE, y: 3.5 * TILE_SIZE },
-        { x: 5.5 * TILE_SIZE, y: 8.5 * TILE_SIZE }, // Behind trapped door!
-        { x: 17.5 * TILE_SIZE, y: 11.5 * TILE_SIZE },
-        { x: 8.5 * TILE_SIZE, y: 15.5 * TILE_SIZE },
-        { x: 19.5 * TILE_SIZE, y: 17.5 * TILE_SIZE }
+      // 6. Collectibles (Key Items & Supplies)
+      const itemDefs = [
+        { x: 21.5 * TILE, z: 2.5 * TILE, type: 'keycard', label: 'BLOODY KEYCARD', isKey: true },
+        { x: 4.5 * TILE, z: 8.5 * TILE, type: 'crowbar', label: 'RUSTY CROWBAR', isKey: true },
+        { x: 21.5 * TILE, z: 15.5 * TILE, type: 'cassette', label: 'CASSETTE TAPE #04', isKey: true },
+        { x: 11.5 * TILE, z: 1.5 * TILE, type: 'ammo', label: '9MM BULLETS (+8)', isKey: false },
+        { x: 1.5 * TILE, z: 15.5 * TILE, type: 'battery', label: 'ALKALINE BATTERY (+50%)', isKey: false },
+        { x: 15.5 * TILE, z: 9.5 * TILE, type: 'medkit', label: 'FIRST AID SPRAY (+40 HP)', isKey: false },
+        { x: 12.5 * TILE, z: 17.5 * TILE, type: 'ammo', label: '9MM BULLETS (+8)', isKey: false },
+        { x: 19.5 * TILE, z: 13.5 * TILE, type: 'battery', label: 'ALKALINE BATTERY (+50%)', isKey: false }
       ];
 
-      zombieSpawns.forEach((pos) => {
-        zombies.push({
-          x: pos.x,
-          y: pos.y,
-          radius: 14,
-          hp: 3,
-          speed: 58,
-          state: 'IDLE', // IDLE, CHASE, STUNNED
-          stunTimer: 0,
-          angle: Math.random() * Math.PI * 2,
-          attackCooldown: 0,
-          bloodTimer: 0
+      itemDefs.forEach((def) => {
+        const itemGroup = new THREE.Group();
+        const mesh = new THREE.Mesh(
+          new THREE.BoxGeometry(0.45, 0.25, 0.35),
+          new THREE.MeshBasicMaterial({ color: def.isKey ? 0xef4444 : 0xd9f99d })
+        );
+        mesh.position.y = 0.45;
+        itemGroup.add(mesh);
+
+        const glow = new THREE.PointLight(def.isKey ? 0xef4444 : 0xbef264, 0.85, 3.5);
+        glow.position.y = 0.7;
+        itemGroup.add(glow);
+
+        itemGroup.position.set(def.x, 0, def.z);
+        levelGroup.add(itemGroup);
+
+        items.push({ ...def, collected: false, mesh: itemGroup });
+      });
+
+      // 7. Falling Props Jumpscare Triggers
+      const propDefs = [
+        { tx: 7.5 * TILE, tz: 5.5 * TILE, px: 7.5 * TILE, pz: 4.35 * TILE },
+        { tx: 13.5 * TILE, tz: 11.5 * TILE, px: 13.5 * TILE, pz: 10.35 * TILE },
+        { tx: 5.5 * TILE, tz: 17.5 * TILE, px: 5.5 * TILE, pz: 16.35 * TILE }
+      ];
+
+      propDefs.forEach((pd) => {
+        const shelf = new THREE.Mesh(
+          new THREE.BoxGeometry(1.3, 1.8, 0.55),
+          new THREE.MeshLambertMaterial({ color: 0x3f4232 })
+        );
+        shelf.position.set(pd.px, 0.9, pd.pz);
+        shelf.castShadow = true;
+        levelGroup.add(shelf);
+
+        fallingProps.push({
+          triggerX: pd.tx,
+          triggerZ: pd.tz,
+          triggered: false,
+          fallAnim: 0,
+          mesh: shelf
         });
       });
 
-      // Gloomy Bloody Ghosts (Supernatural Threats - pass through walls, banished by flashlight)
-      ghosts.push(
-        {
-          x: 15.5 * TILE_SIZE,
-          y: 7.5 * TILE_SIZE,
-          homeX: 15.5 * TILE_SIZE,
-          homeY: 7.5 * TILE_SIZE,
-          radius: 15,
-          speed: 48,
-          banishProgress: 0, // 0 to 1 (at 1, vanishes temporarily)
-          respawnTimer: 0,
-          phaseOffset: 0
-        },
-        {
-          x: 10.5 * TILE_SIZE,
-          y: 16.5 * TILE_SIZE,
-          homeX: 10.5 * TILE_SIZE,
-          homeY: 16.5 * TILE_SIZE,
-          radius: 15,
-          speed: 52,
+      // 8. Zombies (Physical Threats)
+      const zombieCoords = [
+        { x: 13.5 * TILE, z: 5.5 * TILE },
+        { x: 19.5 * TILE, z: 3.5 * TILE },
+        { x: 5.5 * TILE, z: 8.5 * TILE },
+        { x: 17.5 * TILE, z: 11.5 * TILE },
+        { x: 8.5 * TILE, z: 15.5 * TILE },
+        { x: 19.5 * TILE, z: 17.5 * TILE }
+      ];
+
+      zombieCoords.forEach((pos) => {
+        const zMesh = createZombieMesh();
+        zMesh.position.set(pos.x, 0, pos.z);
+        levelGroup.add(zMesh);
+
+        zombies.push({
+          x: pos.x,
+          z: pos.z,
+          radius: 0.46,
+          hp: 3,
+          speed: 2.35,
+          state: 'IDLE',
+          stunTimer: 0,
+          angle: Math.random() * Math.PI * 2,
+          attackCooldown: 0,
+          mesh: zMesh
+        });
+      });
+
+      // 9. Gloomy Bloody Ghosts (Supernatural Threats)
+      const ghostCoords = [
+        { x: 15.5 * TILE, z: 7.5 * TILE },
+        { x: 10.5 * TILE, z: 16.5 * TILE }
+      ];
+
+      ghostCoords.forEach((pos, idx) => {
+        const gMesh = createGhostMesh();
+        gMesh.position.set(pos.x, 0.25, pos.z);
+        levelGroup.add(gMesh);
+
+        ghosts.push({
+          x: pos.x,
+          z: pos.z,
+          homeX: pos.x,
+          homeZ: pos.z,
+          radius: 0.5,
+          speed: 2.05,
           banishProgress: 0,
           respawnTimer: 0,
-          phaseOffset: 2.1
-        }
+          phaseOffset: idx * 2.4,
+          mesh: gMesh
+        });
+      });
+
+      // 10. Partner NPC (Elena in Final Isolation Room)
+      const partnerGroup = new THREE.Group();
+      const elenaBody = new THREE.Mesh(
+        new THREE.BoxGeometry(0.65, 0.45, 0.45),
+        new THREE.MeshLambertMaterial({ color: 0x9ca38b })
       );
+      elenaBody.position.y = 0.25;
+      const elenaBlood = new THREE.Mesh(
+        new THREE.CircleGeometry(0.95, 12),
+        bloodDecalMat
+      );
+      elenaBlood.rotation.x = -Math.PI / 2;
+      elenaBlood.position.y = 0.02;
+      partnerGroup.add(elenaBody, elenaBlood);
+      partnerGroup.position.set(21.5 * TILE, 0, 20.2 * TILE);
+      levelGroup.add(partnerGroup);
 
-      // Partner NPC in Final Isolation Room
       partnerNPC = {
-        x: 21.5 * TILE_SIZE,
-        y: 20.2 * TILE_SIZE,
-        rescued: false
+        x: 21.5 * TILE,
+        z: 20.2 * TILE,
+        rescued: false,
+        mesh: partnerGroup
       };
-
-      // Atmospheric Bloody Trails & Handprints on Floor
-      for (let i = 0; i < 42; i++) {
-        const c = Math.floor(Math.random() * (COLS - 2)) + 1;
-        const r = Math.floor(Math.random() * (ROWS - 2)) + 1;
-        if (MAP_GRID[r][c] === 0) {
-          bloodDecals.push({
-            x: (c + 0.2 + Math.random() * 0.6) * TILE_SIZE,
-            y: (r + 0.2 + Math.random() * 0.6) * TILE_SIZE,
-            size: 6 + Math.random() * 14,
-            dragAngle: Math.random() * Math.PI,
-            isDrag: Math.random() > 0.55
-          });
-        }
-      }
 
       updateHUD();
 
-      // Opening Story Transmission
       queueDialogue(
         'WALKIE-TALKIE // ELENA',
         'ELENA',
-        '"...krrshh... K-kau dengar aku?! Pintu ruang isolasi terkunci dari luar... Ada sesuatu di lorong ini, ia berdarah dan tidak mempan ditembak!"'
+        '"...krrshh... K-kau dengar aku?! Lampu lorong ini berkedip hijau dan pintu ruang isolasi terkunci... Hati-hati, hantu berdarah itu tidak mempan peluru!"'
       );
       queueDialogue(
-        'INTERNAL MONOLOGUE',
+        'CATATAN MISI',
         'RADIO',
-        'Sinyal terputus. Radio saku mulai berdesis setiap kali ancaman mendekat. Aku harus menemukan Keycard, Crowbar, dan Kaset untuk membuka pintu selatan.'
+        'Temukan Bloody Keycard, Rusty Crowbar, dan Cassette Tape di sudut labirin. Gunakan tombol [Q] atau [C] jika ingin memutar sudut kamera.'
       );
     }
 
-    // --- 5. COLLISION & RAYCASTING HELPERS ---
-    function isTileBlocked(c, r, ignoreDoors = false) {
+    // --- 8. 3D COLLISION & LINE-OF-SIGHT HELPERS ---
+    function isTileBlocked(c, r) {
       if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return true;
       const cell = MAP_GRID[r][c];
       if (cell === 1) return true;
-      if (!ignoreDoors && (cell === 2 || cell === 3 || cell === 4)) {
+      if (cell === 2 || cell === 3 || cell === 4) {
         const d = doors.find((door) => door.r === r && door.c === c);
         if (d && !d.open) return true;
       }
       return false;
     }
 
-    function moveEntityWithCollision(entity, dx, dy) {
-      const r = entity.radius;
-      // Move X
-      let nextX = entity.x + dx;
-      if (!circleCollidesMap(nextX, entity.y, r)) {
-        entity.x = nextX;
-      }
-      // Move Y
-      let nextY = entity.y + dy;
-      if (!circleCollidesMap(entity.x, nextY, r)) {
-        entity.y = nextY;
-      }
-    }
-
-    function circleCollidesMap(x, y, radius) {
-      const minC = Math.floor((x - radius) / TILE_SIZE);
-      const maxC = Math.floor((x + radius) / TILE_SIZE);
-      const minR = Math.floor((y - radius) / TILE_SIZE);
-      const maxR = Math.floor((y + radius) / TILE_SIZE);
+    function circleCollidesMap(x, z, radius) {
+      const minC = Math.floor((x - radius) / TILE);
+      const maxC = Math.floor((x + radius) / TILE);
+      const minR = Math.floor((z - radius) / TILE);
+      const maxR = Math.floor((z + radius) / TILE);
 
       for (let r = minR; r <= maxR; r++) {
         for (let c = minC; c <= maxC; c++) {
           if (isTileBlocked(c, r)) {
-            const tileLeft = c * TILE_SIZE;
-            const tileRight = tileLeft + TILE_SIZE;
-            const tileTop = r * TILE_SIZE;
-            const tileBottom = tileTop + TILE_SIZE;
+            const tileLeft = c * TILE;
+            const tileRight = tileLeft + TILE;
+            const tileTop = r * TILE;
+            const tileBottom = tileTop + TILE;
 
             const closestX = Math.max(tileLeft, Math.min(x, tileRight));
-            const closestY = Math.max(tileTop, Math.min(y, tileBottom));
+            const closestZ = Math.max(tileTop, Math.min(z, tileBottom));
             const distX = x - closestX;
-            const distY = y - closestY;
-            if (distX * distX + distY * distY < radius * radius) {
+            const distZ = z - closestZ;
+            if (distX * distX + distZ * distZ < radius * radius) {
               return true;
             }
           }
@@ -1233,54 +1638,54 @@
       return false;
     }
 
-    // Raycast distance check for Flashlight Cone & Line-of-Sight
-    function castRay(originX, originY, angle, maxDist) {
-      const step = 6;
-      const cos = Math.cos(angle);
+    function moveEntityWithCollision(entity, dx, dz) {
+      if (!circleCollidesMap(entity.x + dx, entity.z, entity.radius)) {
+        entity.x += dx;
+      }
+      if (!circleCollidesMap(entity.x, entity.z + dz, entity.radius)) {
+        entity.z += dz;
+      }
+    }
+
+    function castRay2D(ox, oz, angle, maxDist) {
+      const step = 0.25;
       const sin = Math.sin(angle);
+      const cos = Math.cos(angle);
       for (let d = 0; d < maxDist; d += step) {
-        const rx = originX + cos * d;
-        const ry = originY + sin * d;
-        const c = Math.floor(rx / TILE_SIZE);
-        const r = Math.floor(ry / TILE_SIZE);
-        if (isTileBlocked(c, r)) {
-          return { x: rx, y: ry, dist: d, hit: true };
+        const rx = ox + sin * d;
+        const rz = oz + cos * d;
+        if (isTileBlocked(Math.floor(rx / TILE), Math.floor(rz / TILE))) {
+          return d;
         }
       }
-      return {
-        x: originX + cos * maxDist,
-        y: originY + sin * maxDist,
-        dist: maxDist,
-        hit: false
-      };
+      return maxDist;
     }
 
-    function hasLineOfSight(x1, y1, x2, y2) {
+    function hasLineOfSight(x1, z1, x2, z2) {
       const dx = x2 - x1;
-      const dy = y2 - y1;
-      const dist = Math.hypot(dx, dy);
-      const angle = Math.atan2(dy, dx);
-      const hit = castRay(x1, y1, angle, dist);
-      return hit.dist >= dist - 8;
+      const dz = z2 - z1;
+      const dist = Math.hypot(dx, dz);
+      const angle = Math.atan2(dx, dz);
+      return castRay2D(x1, z1, angle, dist) >= dist - 0.35;
     }
 
-    function isPointInFlashlight(tx, ty) {
+    function isPointInFlashlight(tx, tz) {
       if (!player.flashlightOn || player.battery <= 0) return false;
       const dx = tx - player.x;
-      const dy = ty - player.y;
-      const dist = Math.hypot(dx, dy);
-      const maxRange = 240 + (player.battery / 100) * 110;
+      const dz = tz - player.z;
+      const dist = Math.hypot(dx, dz);
+      const maxRange = 11.5 + (player.battery / 100) * 5.5;
       if (dist > maxRange) return false;
 
-      let angleDiff = Math.atan2(dy, dx) - player.angle;
+      let angleDiff = Math.atan2(dx, dz) - player.angle;
       while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
       while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
 
-      if (Math.abs(angleDiff) > 0.44) return false; // ~50 degree total cone
-      return hasLineOfSight(player.x, player.y, tx, ty);
+      if (Math.abs(angleDiff) > 0.42) return false;
+      return hasLineOfSight(player.x, player.z, tx, tz);
     }
 
-    // --- 6. COMBAT & INTERACTION ACTIONS ---
+    // --- 9. COMBAT & INTERACTION ---
     function shootWeapon() {
       if (gameState !== 'PLAYING') return;
       if (!mouse.rightDown && !mobileAimActive) return;
@@ -1294,35 +1699,32 @@
       player.ammo--;
       player.shootCooldown = 0.42;
       player.muzzleFlash = 0.08;
-      screenShake = 8;
+      screenShake = 0.35;
       audio.playGunshot();
       updateHUD();
 
-      // Alert nearby zombies via gunshot sound
       zombies.forEach((z) => {
-        if (z.hp > 0 && Math.hypot(z.x - player.x, z.y - player.y) < 420) {
+        if (z.hp > 0 && Math.hypot(z.x - player.x, z.z - player.z) < 16) {
           z.state = 'CHASE';
         }
       });
 
-      // Hitscan raycast for bullet
-      const maxBulletDist = 360;
-      const wallHit = castRay(player.x, player.y, player.angle, maxBulletDist);
-      const cos = Math.cos(player.angle);
+      const maxBulletDist = 15;
+      const wallDist = castRay2D(player.x, player.z, player.angle, maxBulletDist);
       const sin = Math.sin(player.angle);
+      const cos = Math.cos(player.angle);
 
-      // Check Zombie hit (closest along ray)
       let hitZombie = null;
-      let bestDist = wallHit.dist;
+      let bestDist = wallDist;
 
       zombies.forEach((z) => {
         if (z.hp <= 0) return;
         const toZx = z.x - player.x;
-        const toZy = z.y - player.y;
-        const proj = toZx * cos + toZy * sin;
+        const toZz = z.z - player.z;
+        const proj = toZx * sin + toZz * cos;
         if (proj > 0 && proj < bestDist) {
-          const perp = Math.abs(toZx * sin - toZy * cos);
-          if (perp < z.radius + 5) {
+          const perp = Math.abs(toZx * cos - toZz * sin);
+          if (perp < z.radius + 0.25) {
             bestDist = proj;
             hitZombie = z;
           }
@@ -1333,53 +1735,47 @@
         hitZombie.hp--;
         hitZombie.state = 'CHASE';
         hitZombie.stunTimer = 0.25;
-        // Knockback
-        moveEntityWithCollision(hitZombie, cos * 16, sin * 16);
-        // Blood splatter particles & floor decal
-        bloodDecals.push({
-          x: hitZombie.x + (Math.random() - 0.5) * 14,
-          y: hitZombie.y + (Math.random() - 0.5) * 14,
-          size: 10 + Math.random() * 8,
-          dragAngle: player.angle,
-          isDrag: true
-        });
-        for (let i = 0; i < 10; i++) {
-          particles.push({
-            x: hitZombie.x,
-            y: hitZombie.y,
-            vx: cos * (60 + Math.random() * 90) + (Math.random() - 0.5) * 80,
-            vy: sin * (60 + Math.random() * 90) + (Math.random() - 0.5) * 80,
-            life: 0.35 + Math.random() * 0.25,
-            color: '#b91c1c',
-            size: 3
-          });
+        moveEntityWithCollision(hitZombie, sin * 0.65, cos * 0.65);
+
+        spawn3DParticles(hitZombie.x, 1.0, hitZombie.z, 0x991b1b, 10);
+
+        if (hitZombie.hp <= 0) {
+          hitZombie.mesh.rotation.x = -Math.PI / 2;
+          hitZombie.mesh.position.y = 0.2;
         }
         return;
       }
 
-      // Check if player shot a Ghost (Bullets pass right through with dark smoke!)
+      // Bullets pass right through Ghost with dark smoke
       ghosts.forEach((g) => {
         if (g.respawnTimer > 0) return;
         const toGx = g.x - player.x;
-        const toGy = g.y - player.y;
-        const proj = toGx * cos + toGy * sin;
-        if (proj > 0 && proj < wallHit.dist) {
-          const perp = Math.abs(toGx * sin - toGy * cos);
-          if (perp < g.radius + 6) {
-            for (let i = 0; i < 8; i++) {
-              particles.push({
-                x: g.x,
-                y: g.y,
-                vx: (Math.random() - 0.5) * 60,
-                vy: (Math.random() - 0.5) * 60,
-                life: 0.5,
-                color: '#18181b',
-                size: 5
-              });
-            }
+        const toGz = g.z - player.z;
+        const proj = toGx * sin + toGz * cos;
+        if (proj > 0 && proj < wallDist) {
+          const perp = Math.abs(toGx * cos - toGz * sin);
+          if (perp < g.radius + 0.3) {
+            spawn3DParticles(g.x, 1.1, g.z, 0x11130c, 8);
           }
         }
       });
+    }
+
+    function spawn3DParticles(x, y, z, colorHex, count) {
+      const geo = new THREE.BoxGeometry(0.14, 0.14, 0.14);
+      const mat = new THREE.MeshBasicMaterial({ color: colorHex });
+      for (let i = 0; i < count; i++) {
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(x, y, z);
+        levelGroup.add(mesh);
+        particles.push({
+          mesh,
+          vx: (Math.random() - 0.5) * 4.5,
+          vy: 1.2 + Math.random() * 2.5,
+          vz: (Math.random() - 0.5) * 4.5,
+          life: 0.45 + Math.random() * 0.25
+        });
+      }
     }
 
     function reloadWeapon() {
@@ -1399,24 +1795,24 @@
       }
       if (gameState !== 'PLAYING') return;
 
-      // 1. Check Key Items & Supplies
       for (const item of items) {
-        if (!item.collected && Math.hypot(item.x - player.x, item.y - player.y) < 42) {
+        if (!item.collected && Math.hypot(item.x - player.x, item.z - player.z) < 1.8) {
           item.collected = true;
+          item.mesh.visible = false;
           audio.playPickup();
 
           if (item.type === 'keycard') {
             player.keysCollected.keycard = true;
             document.getElementById('slot-keycard').classList.add('collected');
-            queueDialogue('ITEM DITEMUKAN', 'ELENA', 'Bloody Keycard ditemukan. Ada sidik jari Elena di permukaannya.');
+            queueDialogue('ITEM DITEMUKAN', 'ELENA', 'Bloody Keycard ditemukan. Ada noda darah kering di sudut kartunya.');
           } else if (item.type === 'crowbar') {
             player.keysCollected.crowbar = true;
             document.getElementById('slot-crowbar').classList.add('collected');
-            queueDialogue('ITEM DITEMUKAN', 'RADIO', 'Rusty Crowbar diambil. Cukup kuat untuk mencongkel engsel pintu isolasi yang macet.');
+            queueDialogue('ITEM DITEMUKAN', 'RADIO', 'Rusty Crowbar diambil. Berguna untuk membuka paksa pintu isolasi.');
           } else if (item.type === 'cassette') {
             player.keysCollected.cassette = true;
             document.getElementById('slot-cassette').classList.add('collected');
-            queueDialogue('REKAMAN KASET #04', 'ELENA', '"Jika ada yang menemukan kaset ini... jangan percaya suara di radio. Benda berdarah itu meniru suara kita..."');
+            queueDialogue('REKAMAN KASET #04', 'ELENA', '"Jangan dengarkan suara di radio... Tempat ini sudah mengurungku sejak 3 hari lalu..."');
           } else if (item.type === 'ammo') {
             player.reserveAmmo += 8;
           } else if (item.type === 'battery') {
@@ -1429,14 +1825,13 @@
         }
       }
 
-      // 2. Check Doors
       for (const door of doors) {
-        if (!door.open && Math.hypot(door.x - player.x, door.y - player.y) < 52) {
+        if (!door.open && Math.hypot(door.x - player.x, door.z - player.z) < 2.2) {
           if (door.type === 'FINAL') {
             const hasAll = player.keysCollected.keycard && player.keysCollected.crowbar && player.keysCollected.cassette;
             if (!hasAll) {
               audio.playClick(220);
-              queueDialogue('PINTU RUANG ISOLASI', 'RADIO', 'Terkunci rapat. Butuh 3 item kunci (Bloody Keycard, Rusty Crowbar, & Cassette Tape) untuk membukanya.');
+              queueDialogue('PINTU ISOLASI TERKUNCI', 'RADIO', 'Membutuhkan 3 item kunci (Bloody Keycard, Rusty Crowbar, & Cassette Tape) untuk membukanya.');
               return;
             }
           }
@@ -1446,30 +1841,40 @@
         }
       }
 
-      // 3. Check Partner Rescue in Final Room
-      if (partnerNPC && !partnerNPC.rescued && Math.hypot(partnerNPC.x - player.x, partnerNPC.y - player.y) < 54) {
+      if (partnerNPC && !partnerNPC.rescued && Math.hypot(partnerNPC.x - player.x, partnerNPC.z - player.z) < 2.4) {
         partnerNPC.rescued = true;
         audio.playJumpscareStinger('door');
-        screenShake = 14;
+        screenShake = 0.6;
         queueDialogue(
           'ELENA (?)',
           'ELENA',
-          '"Kau datang juga... Tapi kenapa kau membawa radio itu? Panggilan tadi dikirim 3 hari lalu..."'
+          '"Kau datang juga... Tapi rekaman di walkie-talkie itu berasal dari minggu lalu. Kita berdua tidak akan pernah keluar dari lorong kuning ini."'
         );
         queueDialogue(
-          'TRANSMISI TERAKHIR',
+          'AKHIR REKAMAN',
           'GHOST',
-          'Di balik bahu Elena, statis radio meledak menjadi jeritan. Kalian berdua kini terjebak dalam frekuensi merah yang sama.',
+          'Lampu neon di atas kalian padam seketika, menyisakan dengung statis radio yang memekakkan telinga.',
           () => triggerEnding(true)
         );
       }
     }
 
-    // --- 7. GAME LOOP UPDATE ---
+    // --- 10. MAIN UPDATE LOOP ---
     function update(dt) {
       frameCount++;
 
-      // Typewriter dialogue update
+      // Animate flickering murky yellow-green lamps even on menu
+      flickeringLamps.forEach((lamp, i) => {
+        const flicker = Math.sin(frameCount * 0.25 + lamp.flickerOffset) * Math.sin(frameCount * 0.71 + i);
+        if (flicker > 0.86) {
+          lamp.light.intensity = 0.2;
+          lamp.bulb.material.color.setHex(0x454d24);
+        } else {
+          lamp.light.intensity = lamp.baseIntensity + Math.sin(frameCount * 0.08 + i) * 0.1;
+          lamp.bulb.material.color.setHex(0xdfe896);
+        }
+      });
+
       if (gameState === 'DIALOGUE' && currentDialogue) {
         typeTimer += dt;
         if (typeTimer >= 0.022 && typedChars < currentDialogue.text.length) {
@@ -1483,117 +1888,153 @@
 
       if (gameState !== 'PLAYING') return;
 
-      // Decay screen shake & muzzle flash
-      if (screenShake > 0) screenShake = Math.max(0, screenShake - dt * 38);
-      if (player.muzzleFlash > 0) player.muzzleFlash = Math.max(0, player.muzzleFlash - dt);
+      if (screenShake > 0) screenShake = Math.max(0, screenShake - dt * 2.2);
       if (player.shootCooldown > 0) player.shootCooldown = Math.max(0, player.shootCooldown - dt);
+      if (player.muzzleFlash > 0) {
+        player.muzzleFlash = Math.max(0, player.muzzleFlash - dt);
+        player.muzzleLight.intensity = player.muzzleFlash > 0 ? 4.5 : 0;
+      }
 
-      // Player Movement
+      // Movement relative to camera angle
       let moveX = 0;
-      let moveY = 0;
-      if (keys['KeyW'] || keys['ArrowUp']) moveY -= 1;
-      if (keys['KeyS'] || keys['ArrowDown']) moveY += 1;
+      let moveZ = 0;
+      if (keys['KeyW'] || keys['ArrowUp']) moveZ -= 1;
+      if (keys['KeyS'] || keys['ArrowDown']) moveZ += 1;
       if (keys['KeyA'] || keys['ArrowLeft']) moveX -= 1;
       if (keys['KeyD'] || keys['ArrowRight']) moveX += 1;
 
       if (joystick.active) {
         moveX = joystick.dx;
-        moveY = joystick.dy;
+        moveZ = joystick.dy;
       }
 
-      const len = Math.hypot(moveX, moveY);
+      const len = Math.hypot(moveX, moveZ);
       if (len > 0) {
         moveX /= len;
-        moveY /= len;
-        const currentSpeed = (mouse.rightDown || mobileAimActive) ? player.aimSpeed : player.speed;
-        moveEntityWithCollision(player, moveX * currentSpeed * dt, moveY * currentSpeed * dt);
+        moveZ /= len;
+        const spd = (mouse.rightDown || mobileAimActive) ? player.aimSpeed : player.speed;
+        moveEntityWithCollision(player, moveX * spd * dt, moveZ * spd * dt);
         audio.playFootstep();
 
+        player.walkCycle += dt * 11;
+        player.leftLeg.rotation.x = Math.sin(player.walkCycle) * 0.55;
+        player.rightLeg.rotation.x = -Math.sin(player.walkCycle) * 0.55;
+
         if (joystick.active && !mouse.rightDown) {
-          player.angle = Math.atan2(moveY, moveX);
+          player.angle = Math.atan2(moveX, moveZ);
+        }
+      } else {
+        player.leftLeg.rotation.x = 0;
+        player.rightLeg.rotation.x = 0;
+      }
+
+      // 3D Raycast Mouse Aiming onto Ground Plane
+      if (!joystick.active) {
+        raycaster.setFromCamera(new THREE.Vector2(mouse.ndcX, mouse.ndcY), camera);
+        const hitPoint = new THREE.Vector3();
+        if (raycaster.ray.intersectPlane(groundPlane, hitPoint)) {
+          player.angle = Math.atan2(hitPoint.x - player.x, hitPoint.z - player.z);
         }
       }
 
-      // Player Aim Angle (Desktop Mouse)
-      if (!joystick.active) {
-        mouse.worldX = mouse.x - canvas.width / 2 + camera.x;
-        mouse.worldY = mouse.y - canvas.height / 2 + camera.y;
-        player.angle = Math.atan2(mouse.worldY - player.y, mouse.worldX - player.x);
+      // Sync Player 3D Mesh & Aim Pose
+      player.mesh.position.set(player.x, 0, player.z);
+      player.mesh.rotation.y = player.angle;
+
+      const isAiming = mouse.rightDown || mobileAimActive;
+      player.rightArm.rotation.x = isAiming ? -Math.PI / 2 : -0.35;
+      player.laserLine.visible = isAiming;
+      if (isAiming) {
+        const laserDist = castRay2D(player.x, player.z, player.angle, 14);
+        player.laserLine.geometry.setFromPoints([
+          new THREE.Vector3(0.38, 1.2, 0.55),
+          new THREE.Vector3(0.38, 1.2, laserDist)
+        ]);
       }
 
-      // Smooth Claustrophobic Camera Follow
-      camera.x += (player.x - camera.x) * Math.min(1, dt * 6.5);
-      camera.y += (player.y - camera.y) * Math.min(1, dt * 6.5);
-
-      // Flashlight Battery Drain & Flicker
+      // Flashlight Battery & 3D SpotLight Tracking
       if (player.flashlightOn && player.battery > 0) {
-        player.battery = Math.max(0, player.battery - dt * 0.75);
+        player.battery = Math.max(0, player.battery - dt * 0.72);
         if (player.battery < 25 && Math.random() < 0.08) {
           player.flickerTimer = 0.07;
         }
       }
       if (player.flickerTimer > 0) player.flickerTimer -= dt;
 
-      // Update Doors (Including Trapped Jumpscare Doors!)
+      const flashActive = player.flashlightOn && player.battery > 0 && player.flickerTimer <= 0;
+      flashLight.intensity = flashActive ? 2.4 + (player.battery / 100) * 0.9 : 0;
+      flashLight.position.set(player.x, 1.45, player.z);
+      flashLight.target.position.set(
+        player.x + Math.sin(player.angle) * 6,
+        0.6,
+        player.z + Math.cos(player.angle) * 6
+      );
+      flashLight.target.updateMatrixWorld();
+
+      playerAuraLight.position.set(player.x, 2.2, player.z);
+
+      // Smooth Resident Evil / Crow Country Angled Camera Follow
+      const preset = cameraAngles[camPresetIdx];
+      const desiredCamPos = new THREE.Vector3(player.x + preset.dx, preset.dy, player.z + preset.dz);
+      camPosCurrent.lerp(desiredCamPos, Math.min(1, dt * 5.5));
+
+      const shakeX = (Math.random() - 0.5) * screenShake;
+      const shakeZ = (Math.random() - 0.5) * screenShake;
+      camera.position.set(camPosCurrent.x + shakeX, camPosCurrent.y, camPosCurrent.z + shakeZ);
+
+      camLookTarget.lerp(new THREE.Vector3(player.x, 0.9, player.z), Math.min(1, dt * 7.5));
+      camera.lookAt(camLookTarget);
+
+      // Update Doors (including Trapped Jumpscare Doors)
       for (const door of doors) {
         if (door.type === 'TRAPPED' && !door.triggered) {
-          const dist = Math.hypot(door.x - player.x, door.y - player.y);
-          if (dist < TILE_SIZE * 1.35) {
+          const dist = Math.hypot(door.x - player.x, door.z - player.z);
+          if (dist < TILE * 1.35) {
             door.triggered = true;
             door.open = true;
-            screenShake = 18;
+            screenShake = 0.75;
             audio.playJumpscareStinger('door');
-            // Spawn sudden bloody mist burst at doorway
-            for (let i = 0; i < 18; i++) {
-              particles.push({
-                x: door.x,
-                y: door.y,
-                vx: (Math.random() - 0.5) * 140,
-                vy: (Math.random() - 0.5) * 140,
-                life: 0.75,
-                color: i % 2 === 0 ? '#991b1b' : '#09090b',
-                size: 6
-              });
-            }
+            spawn3DParticles(door.x, 1.2, door.z, 0x991b1b, 16);
           }
         }
-
         if (door.open && door.openProgress < 1) {
           door.openProgress = Math.min(1, door.openProgress + dt * (door.type === 'TRAPPED' ? 9 : 3.5));
+          door.mesh.rotation.y = door.openProgress * (Math.PI * 0.48);
         }
       }
 
-      // Update Falling Props Jumpscare Triggers
+      // Update Falling Props Jumpscares
       for (const fp of fallingProps) {
-        if (!fp.triggered && Math.hypot(fp.triggerX - player.x, fp.triggerY - player.y) < 42) {
+        if (!fp.triggered && Math.hypot(fp.triggerX - player.x, fp.triggerZ - player.z) < 1.8) {
           fp.triggered = true;
-          screenShake = 15;
+          screenShake = 0.65;
           audio.playJumpscareStinger('prop');
-          for (let i = 0; i < 14; i++) {
-            particles.push({
-              x: fp.propX,
-              y: fp.propY,
-              vx: (Math.random() - 0.5) * 110,
-              vy: (Math.random() - 0.5) * 110,
-              life: 0.6,
-              color: '#71717a',
-              size: 4
-            });
-          }
+          spawn3DParticles(fp.mesh.position.x, 1.0, fp.mesh.position.z, 0x5c6148, 12);
         }
         if (fp.triggered && fp.fallAnim < 1) {
-          fp.fallAnim = Math.min(1, fp.fallAnim + dt * 5);
+          fp.fallAnim = Math.min(1, fp.fallAnim + dt * 5.2);
+          fp.mesh.rotation.x = fp.fallAnim * (Math.PI / 2);
+          fp.mesh.position.y = 0.9 - fp.fallAnim * 0.6;
+          fp.mesh.position.z += dt * 1.4;
         }
       }
 
-      // Track closest threat for Radio Static Proximity Detector
-      let closestThreatDist = 9999;
+      // Rotate collectibles gently
+      items.forEach((it) => {
+        if (!it.collected) {
+          it.mesh.children[0].rotation.y += dt * 2.2;
+          it.mesh.children[0].position.y = 0.45 + Math.sin(frameCount * 0.08) * 0.08;
+        }
+      });
+
+      // Threat Proximity Tracking for Radio Static
+      let closestThreatDist = 999;
       let isGhostThreat = false;
 
       // Update Zombies
       for (const z of zombies) {
         if (z.hp <= 0) continue;
-        const dist = Math.hypot(player.x - z.x, player.y - z.y);
+        const dist = Math.hypot(player.x - z.x, player.z - z.z);
         if (dist < closestThreatDist) {
           closestThreatDist = dist;
           isGhostThreat = false;
@@ -1605,109 +2046,86 @@
         }
         if (z.attackCooldown > 0) z.attackCooldown -= dt;
 
-        // Detect player via flashlight or close proximity
-        const lit = isPointInFlashlight(z.x, z.y);
-        if (lit || (dist < 115 && hasLineOfSight(z.x, z.y, player.x, player.y))) {
+        const lit = isPointInFlashlight(z.x, z.z);
+        if (lit || (dist < 5.2 && hasLineOfSight(z.x, z.z, player.x, player.z))) {
           z.state = 'CHASE';
         }
 
         if (z.state === 'CHASE') {
-          const angle = Math.atan2(player.y - z.y, player.x - z.x);
+          const angle = Math.atan2(player.x - z.x, player.z - z.z);
           z.angle = angle;
-          moveEntityWithCollision(z, Math.cos(angle) * z.speed * dt, Math.sin(angle) * z.speed * dt);
+          moveEntityWithCollision(z, Math.sin(angle) * z.speed * dt, Math.cos(angle) * z.speed * dt);
+          z.mesh.position.set(z.x, 0, z.z);
+          z.mesh.rotation.y = angle;
+          z.mesh.rotation.z = Math.sin(frameCount * 0.16) * 0.08;
 
-          // Leave bloody trail
-          z.bloodTimer += dt;
-          if (z.bloodTimer > 0.7) {
-            z.bloodTimer = 0;
-            bloodDecals.push({ x: z.x, y: z.y, size: 6, dragAngle: angle, isDrag: false });
-          }
-
-          // Melee Bite Attack
-          if (dist < player.radius + z.radius + 6 && z.attackCooldown <= 0) {
+          if (dist < player.radius + z.radius + 0.25 && z.attackCooldown <= 0) {
             z.attackCooldown = 1.2;
             damagePlayer(24);
           }
         }
       }
 
-      // Update Gloomy Bloody Ghosts (Supernatural Threat)
+      // Update Gloomy Bloody Ghosts
       let ghostProximityFactor = 0;
       for (const g of ghosts) {
         if (g.respawnTimer > 0) {
           g.respawnTimer -= dt;
+          g.mesh.visible = false;
           if (g.respawnTimer <= 0) {
             g.x = g.homeX;
-            g.y = g.homeY;
+            g.z = g.homeZ;
             g.banishProgress = 0;
+            g.mesh.visible = true;
           }
           continue;
         }
 
-        const dist = Math.hypot(player.x - g.x, player.y - g.y);
+        const dist = Math.hypot(player.x - g.x, player.z - g.z);
         if (dist < closestThreatDist) {
           closestThreatDist = dist;
           isGhostThreat = true;
         }
 
-        if (dist < 260) {
-          ghostProximityFactor = Math.max(ghostProximityFactor, 1 - dist / 260);
+        if (dist < 11.5) {
+          ghostProximityFactor = Math.max(ghostProximityFactor, 1 - dist / 11.5);
         }
 
-        // Ghost floats towards player if within haunting radius (ignores walls!)
-        if (dist < 275) {
-          const angle = Math.atan2(player.y - g.y, player.x - g.x);
-          const litByFlashlight = isPointInFlashlight(g.x, g.y);
+        // Hover animation
+        g.mesh.position.y = 0.2 + Math.sin(frameCount * 0.08 + g.phaseOffset) * 0.14;
+
+        if (dist < 12.0) {
+          const angle = Math.atan2(player.x - g.x, player.z - g.z);
+          g.mesh.rotation.y = angle;
+          const litByFlashlight = isPointInFlashlight(g.x, g.z);
 
           if (litByFlashlight) {
-            // Flashlight stuns & banishes Ghost, but drains battery rapidly!
             g.banishProgress += dt * 0.65;
-            player.battery = Math.max(0, player.battery - dt * 5.5);
-            screenShake = Math.max(screenShake, 4);
+            player.battery = Math.max(0, player.battery - dt * 5.2);
+            screenShake = Math.max(screenShake, 0.18);
 
             if (g.banishProgress >= 1) {
-              g.respawnTimer = 16; // Banished for 16 seconds
+              g.respawnTimer = 16;
+              g.mesh.visible = false;
               audio.playGhostWhisper();
-              for (let i = 0; i < 24; i++) {
-                particles.push({
-                  x: g.x,
-                  y: g.y,
-                  vx: (Math.random() - 0.5) * 130,
-                  vy: (Math.random() - 0.5) * 130,
-                  life: 0.85,
-                  color: i % 2 === 0 ? '#dc2626' : '#09090b',
-                  size: 6
-                });
-              }
+              spawn3DParticles(g.x, 1.2, g.z, 0xdc2626, 20);
             }
           } else {
             g.banishProgress = Math.max(0, g.banishProgress - dt * 0.3);
-            g.x += Math.cos(angle) * g.speed * dt;
-            g.y += Math.sin(angle) * g.speed * dt;
+            g.x += Math.sin(angle) * g.speed * dt;
+            g.z += Math.cos(angle) * g.speed * dt;
+            g.mesh.position.x = g.x;
+            g.mesh.position.z = g.z;
           }
 
-          // Gloomy black/blood particles around ghost
-          if (Math.random() < 0.35) {
-            particles.push({
-              x: g.x + (Math.random() - 0.5) * 24,
-              y: g.y + (Math.random() - 0.5) * 24,
-              vx: (Math.random() - 0.5) * 18,
-              vy: -15 - Math.random() * 20,
-              life: 0.6,
-              color: Math.random() > 0.3 ? '#09090b' : '#991b1b',
-              size: 5
-            });
-          }
-
-          // Supernatural touch drains life
           if (dist < player.radius + g.radius) {
             damagePlayer(dt * 34);
           }
         }
       }
 
-      // Update Radio Static & VHS Distortion based on threat proximity
-      const maxRadioRange = 290;
+      // Radio Static & VHS Distortion Feedback
+      const maxRadioRange = 13.0;
       const threatIntensity = Math.max(0, Math.min(1, 1 - closestThreatDist / maxRadioRange));
       audio.updateRadioStatic(threatIntensity, isGhostThreat);
       drawRadioWaveform(threatIntensity, isGhostThreat);
@@ -1716,25 +2134,29 @@
       document.getElementById('radio-status').textContent =
         threatIntensity > 0.65 ? 'WARNING // INTERFERENCE!' : 'RADIO FREQ: 88.4 MHz';
       document.getElementById('radio-status').style.color =
-        threatIntensity > 0.65 ? '#ef4444' : '#a1a1aa';
+        threatIntensity > 0.65 ? '#ef4444' : '#b8be98';
 
-      // Update Particles
+      // Update 3D Particles
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
-        p.x += p.vx * dt;
-        p.y += p.vy * dt;
+        p.mesh.position.x += p.vx * dt;
+        p.mesh.position.y += p.vy * dt;
+        p.mesh.position.z += p.vz * dt;
+        p.vy -= 9.8 * dt;
         p.life -= dt;
-        if (p.life <= 0) particles.splice(i, 1);
+        if (p.life <= 0) {
+          levelGroup.remove(p.mesh);
+          particles.splice(i, 1);
+        }
       }
 
-      // Check Interactable Prompt Visibility
       updateInteractPrompt();
       updateHUD();
     }
 
     function damagePlayer(amount) {
       player.hp = Math.max(0, player.hp - amount);
-      screenShake = Math.max(screenShake, 10);
+      screenShake = Math.max(screenShake, 0.45);
       const dmgVig = document.getElementById('damage-vignette');
       dmgVig.style.boxShadow = 'inset 0 0 95px rgba(200, 0, 0, 0.78)';
       setTimeout(() => {
@@ -1756,9 +2178,9 @@
       endScreen.classList.remove('hidden');
       if (survived) {
         endTitle.textContent = 'TAPE END // FREKUENSI MERAH';
-        endTitle.style.color = '#f87171';
+        endTitle.style.color = '#bef264';
         endDesc.textContent =
-          'Kau berhasil menembus labirin dan menemukan Elena di ruang isolasi. Namun rekaman kaset membuktikan bahwa sosok di radio sudah lama tiada—dan pintu di belakang kalian kini terkunci selamanya.';
+          'Kau mencapai ruang isolasi di balik kabut hijau kekuningan. Namun rekaman kaset membuktikan Elena telah tiada sejak awal—dan pintu di belakangmu kini terkunci selamanya.';
       } else {
         endTitle.textContent = 'SIGNAL LOST // YOU DIED';
         endTitle.style.color = '#dc2626';
@@ -1772,7 +2194,7 @@
       let label = null;
 
       for (const item of items) {
-        if (!item.collected && Math.hypot(item.x - player.x, item.y - player.y) < 42) {
+        if (!item.collected && Math.hypot(item.x - player.x, item.z - player.z) < 1.8) {
           label = `[E] AMBIL ${item.label}`;
           break;
         }
@@ -1780,14 +2202,14 @@
 
       if (!label) {
         for (const door of doors) {
-          if (!door.open && Math.hypot(door.x - player.x, door.y - player.y) < 52) {
+          if (!door.open && Math.hypot(door.x - player.x, door.z - player.z) < 2.2) {
             label = door.type === 'FINAL' ? '[E] BUKA PINTU ISOLASI' : '[E] BUKA PINTU';
             break;
           }
         }
       }
 
-      if (!label && partnerNPC && !partnerNPC.rescued && Math.hypot(partnerNPC.x - player.x, partnerNPC.y - player.y) < 54) {
+      if (!label && partnerNPC && !partnerNPC.rescued && Math.hypot(partnerNPC.x - player.x, partnerNPC.z - player.z) < 2.4) {
         label = '[E] SELAMATKAN ELENA';
       }
 
@@ -1804,10 +2226,10 @@
       const hpPct = Math.ceil(player.hp);
       if (hpPct > 65) {
         hpEl.textContent = `FINE (${hpPct}%)`;
-        hpEl.className = 'stat-val';
+        hpEl.className = 'stat-val fine';
       } else if (hpPct > 30) {
         hpEl.textContent = `CAUTION (${hpPct}%)`;
-        hpEl.className = 'stat-val danger';
+        hpEl.className = 'stat-val caution';
       } else {
         hpEl.textContent = `DANGER (${hpPct}%)`;
         hpEl.className = 'stat-val danger';
@@ -1832,10 +2254,10 @@
     }
 
     function drawRadioWaveform(intensity, isGhost) {
-      radioCtx.fillStyle = '#070908';
+      radioCtx.fillStyle = '#0d1007';
       radioCtx.fillRect(0, 0, 110, 26);
 
-      radioCtx.strokeStyle = intensity > 0.55 ? '#ef4444' : isGhost ? '#a855f7' : '#4ade80';
+      radioCtx.strokeStyle = intensity > 0.55 ? '#ef4444' : isGhost ? '#facc15' : '#a3e635';
       radioCtx.lineWidth = 1.5;
       radioCtx.beginPath();
 
@@ -1849,340 +2271,20 @@
       radioCtx.stroke();
     }
 
-    // --- 8. RENDER ENGINE (2.5D PS1 AESTHETIC & RAYCAST LIGHTING) ---
-    function render() {
-      const w = canvas.width;
-      const h = canvas.height;
+    // --- 11. INPUT LISTENERS & PS1 RESOLUTION SCALING ---
+    function handleResize() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
 
-      // Pitch-black desaturated background
-      ctx.fillStyle = '#040505';
-      ctx.fillRect(0, 0, w, h);
-
-      ctx.save();
-      const shakeX = (Math.random() - 0.5) * screenShake;
-      const shakeY = (Math.random() - 0.5) * screenShake;
-      ctx.translate(Math.floor(w / 2 - camera.x + shakeX), Math.floor(h / 2 - camera.y + shakeY));
-
-      // 1. Render Desaturated Hospital/Bunker Floor Tiles
-      const startCol = Math.max(0, Math.floor((camera.x - w / 2) / TILE_SIZE) - 1);
-      const endCol = Math.min(COLS - 1, Math.ceil((camera.x + w / 2) / TILE_SIZE) + 1);
-      const startRow = Math.max(0, Math.floor((camera.y - h / 2) / TILE_SIZE) - 1);
-      const endRow = Math.min(ROWS - 1, Math.ceil((camera.y + h / 2) / TILE_SIZE) + 1);
-
-      for (let r = startRow; r <= endRow; r++) {
-        for (let c = startCol; c <= endCol; c++) {
-          const tx = c * TILE_SIZE;
-          const ty = r * TILE_SIZE;
-          if (MAP_GRID[r][c] !== 1) {
-            ctx.fillStyle = (r + c) % 2 === 0 ? '#181c1a' : '#141816';
-            ctx.fillRect(tx, ty, TILE_SIZE, TILE_SIZE);
-            ctx.strokeStyle = '#0f1211';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(tx, ty, TILE_SIZE, TILE_SIZE);
-          }
-        }
-      }
-
-      // 2. Render Blood Decals & Drag Trails
-      for (const b of bloodDecals) {
-        ctx.save();
-        ctx.translate(b.x, b.y);
-        ctx.rotate(b.dragAngle);
-        ctx.fillStyle = 'rgba(125, 12, 16, 0.78)';
-        ctx.beginPath();
-        if (b.isDrag) {
-          ctx.ellipse(0, 0, b.size * 1.8, b.size * 0.45, 0, 0, Math.PI * 2);
-        } else {
-          ctx.arc(0, 0, b.size * 0.6, 0, Math.PI * 2);
-        }
-        ctx.fill();
-        ctx.restore();
-      }
-
-      // 3. Render Falling Props (Before & After Jumpscare)
-      for (const fp of fallingProps) {
-        ctx.save();
-        ctx.translate(fp.propX, fp.propY + fp.fallAnim * 24);
-        ctx.rotate(fp.fallAnim * 0.45);
-        ctx.fillStyle = '#3f3f46';
-        ctx.fillRect(-16, -8, 32, 16);
-        ctx.strokeStyle = '#7f1d1d';
-        ctx.strokeRect(-16, -8, 32, 16);
-        ctx.restore();
-      }
-
-      // 4. Render Collectibles (Glowing faintly in the dark)
-      for (const item of items) {
-        if (item.collected) continue;
-        const pulse = 0.65 + Math.sin(frameCount * 0.1) * 0.35;
-        ctx.fillStyle =
-          item.type === 'keycard' || item.type === 'crowbar' || item.type === 'cassette'
-            ? `rgba(239, 68, 68, ${pulse})`
-            : `rgba(250, 204, 21, ${pulse})`;
-        ctx.beginPath();
-        ctx.arc(item.x, item.y, 7, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(item.x - 6, item.y - 6, 12, 12);
-      }
-
-      // 5. Render Doors
-      for (const door of doors) {
-        ctx.save();
-        ctx.translate(door.x, door.y);
-        if (door.open) {
-          ctx.rotate(-Math.PI * 0.48 * door.openProgress);
-        }
-        ctx.fillStyle = door.type === 'FINAL' ? '#7f1d1d' : '#44403c';
-        ctx.fillRect(-TILE_SIZE / 2, -6, TILE_SIZE, 12);
-        ctx.strokeStyle = '#1c1917';
-        ctx.strokeRect(-TILE_SIZE / 2, -6, TILE_SIZE, 12);
-        ctx.restore();
-      }
-
-      // 6. Render Partner NPC (Elena in Final Room)
-      if (partnerNPC) {
-        ctx.save();
-        ctx.translate(partnerNPC.x, partnerNPC.y);
-        // Blood pool around injured partner
-        ctx.fillStyle = 'rgba(136, 19, 24, 0.7)';
-        ctx.beginPath();
-        ctx.arc(0, 4, 20, 0, Math.PI * 2);
-        ctx.fill();
-        // Low-poly character body
-        ctx.fillStyle = '#9ca3af';
-        ctx.beginPath();
-        ctx.arc(0, 0, 12, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#18181b';
-        ctx.beginPath();
-        ctx.arc(-2, -2, 8, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      }
-
-      // 7. Render Zombies (Only clearly visible if in line of sight / lit)
-      for (const z of zombies) {
-        if (z.hp <= 0) {
-          // Dead zombie corpse
-          ctx.fillStyle = '#450a0a';
-          ctx.beginPath();
-          ctx.ellipse(z.x, z.y, 16, 10, z.angle, 0, Math.PI * 2);
-          ctx.fill();
-          continue;
-        }
-        ctx.save();
-        ctx.translate(z.x, z.y);
-        ctx.rotate(z.angle);
-        // Outstretched arms
-        ctx.fillStyle = '#4d5c53';
-        ctx.fillRect(4, -12, 13, 5);
-        ctx.fillRect(4, 7, 13, 5);
-        // Torso & Head
-        ctx.fillStyle = '#36413b';
-        ctx.beginPath();
-        ctx.arc(0, 0, z.radius, 0, Math.PI * 2);
-        ctx.fill();
-        // Blood stains on zombie
-        ctx.fillStyle = '#991b1b';
-        ctx.beginPath();
-        ctx.arc(4, 2, 6, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      }
-
-      // 8. Render Player Character (2.5D Top-Down Low-Poly Style)
-      ctx.save();
-      ctx.translate(player.x, player.y);
-      ctx.rotate(player.angle);
-
-      // Laser Sight when Aiming (Crow Country / Resident Evil style)
-      if (mouse.rightDown || mobileAimActive) {
-        const laserHit = castRay(player.x, player.y, player.angle, 350);
-        ctx.strokeStyle = 'rgba(239, 68, 68, 0.75)';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(12, 4);
-        ctx.lineTo(laserHit.dist, 4);
-        ctx.stroke();
-
-        // Red laser dot at impact
-        ctx.fillStyle = '#ef4444';
-        ctx.beginPath();
-        ctx.arc(laserHit.dist, 4, 3, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // Coat & Shoulders
-      ctx.fillStyle = '#52525b';
-      ctx.beginPath();
-      ctx.ellipse(0, 0, 11, 15, 0, 0, Math.PI * 2);
-      ctx.fill();
-      // Head
-      ctx.fillStyle = '#d4d4d8';
-      ctx.beginPath();
-      ctx.arc(2, 0, 8, 0, Math.PI * 2);
-      ctx.fill();
-      // Muzzle Flash
-      if (player.muzzleFlash > 0) {
-        ctx.fillStyle = '#fef08a';
-        ctx.beginPath();
-        ctx.arc(22, 4, 12, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.restore();
-
-      // 9. Render 2.5D Extruded Walls (Blocks corridor view cleanly)
-      for (let r = startRow; r <= endRow; r++) {
-        for (let c = startCol; c <= endCol; c++) {
-          if (MAP_GRID[r][c] === 1) {
-            const tx = c * TILE_SIZE;
-            const ty = r * TILE_SIZE;
-            // Wall base shadow
-            ctx.fillStyle = '#090a0a';
-            ctx.fillRect(tx, ty, TILE_SIZE, TILE_SIZE);
-            // 2.5D raised top face for PS1 isometric depth illusion
-            ctx.fillStyle = '#232826';
-            ctx.fillRect(tx, ty - 10, TILE_SIZE, TILE_SIZE - 4);
-            ctx.strokeStyle = '#121514';
-            ctx.lineWidth = 1.5;
-            ctx.strokeRect(tx, ty - 10, TILE_SIZE, TILE_SIZE - 4);
-          }
-        }
-      }
-
-      // 10. Render Particles
-      for (const p of particles) {
-        ctx.fillStyle = p.color;
-        ctx.globalAlpha = Math.max(0, p.life * 1.4);
-        ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
-      }
-      ctx.globalAlpha = 1;
-
-      // 11. Pitch-Black Darkness & Raycast Cone Flashlight Mask
-      renderLightingOverlay(w, h);
-
-      // 12. Render Gloomy Bloody Ghosts ON TOP of darkness (Supernatural eerie glow)
-      for (const g of ghosts) {
-        if (g.respawnTimer > 0) continue;
-        const dist = Math.hypot(player.x - g.x, player.y - g.y);
-        if (dist > 340) continue;
-
-        const hoverY = Math.sin(frameCount * 0.08 + g.phaseOffset) * 5;
-        const alpha = Math.max(0.15, (1 - g.banishProgress) * (1 - dist / 350));
-
-        ctx.save();
-        ctx.translate(g.x, g.y + hoverY);
-        ctx.globalAlpha = alpha;
-
-        // Gloomy dark aura
-        const aura = ctx.createRadialGradient(0, 0, 2, 0, 0, 32);
-        aura.addColorStop(0, 'rgba(0, 0, 0, 0.95)');
-        aura.addColorStop(0.6, 'rgba(80, 0, 10, 0.45)');
-        aura.addColorStop(1, 'rgba(0, 0, 0, 0)');
-        ctx.fillStyle = aura;
-        ctx.beginPath();
-        ctx.arc(0, 0, 32, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Pale bloody figure & long black hair
-        ctx.fillStyle = '#d4d4d8';
-        ctx.beginPath();
-        ctx.arc(0, -3, 10, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Blood drips
-        ctx.fillStyle = '#dc2626';
-        ctx.fillRect(-5, 2, 10, 12);
-        ctx.fillRect(-3, -2, 2, 8);
-        ctx.fillRect(3, -1, 2, 9);
-
-        // Long unkempt hair strands
-        ctx.fillStyle = '#09090b';
-        ctx.fillRect(-10, -10, 5, 20);
-        ctx.fillRect(5, -10, 5, 20);
-        ctx.fillRect(-8, -12, 16, 7);
-
-        ctx.restore();
-      }
-
-      ctx.restore();
+      // Render at slightly lower resolution (0.68x) for authentic PS1 / VHS crisp pixelation
+      const ps1Scale = w < 768 ? 0.62 : 0.72;
+      renderer.setSize(Math.floor(w * ps1Scale), Math.floor(h * ps1Scale), false);
     }
 
-    // Offscreen canvas for smooth darkness cutout
-    const lightCanvas = document.createElement('canvas');
-    const lightCtx = lightCanvas.getContext('2d');
-
-    function renderLightingOverlay(w, h) {
-      if (lightCanvas.width !== w || lightCanvas.height !== h) {
-        lightCanvas.width = w;
-        lightCanvas.height = h;
-      }
-
-      lightCtx.globalCompositeOperation = 'source-over';
-      lightCtx.fillStyle = 'rgba(2, 3, 3, 0.965)';
-      lightCtx.fillRect(0, 0, w, h);
-
-      const screenPx = w / 2 + (player.x - camera.x);
-      const screenPy = h / 2 + (player.y - camera.y);
-
-      lightCtx.globalCompositeOperation = 'destination-out';
-
-      // Faint ambient self-glow around player so character silhouette is legible
-      const selfGlow = lightCtx.createRadialGradient(screenPx, screenPy, 6, screenPx, screenPy, 48);
-      selfGlow.addColorStop(0, 'rgba(0, 0, 0, 0.72)');
-      selfGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      lightCtx.fillStyle = selfGlow;
-      lightCtx.beginPath();
-      lightCtx.arc(screenPx, screenPy, 48, 0, Math.PI * 2);
-      lightCtx.fill();
-
-      // Raycast Flashlight Cone
-      const isLit = player.flashlightOn && player.battery > 0 && player.flickerTimer <= 0;
-      if (isLit) {
-        const maxRange = 235 + (player.battery / 100) * 115;
-        const spread = 0.44;
-        const rayCount = 46;
-
-        lightCtx.beginPath();
-        lightCtx.moveTo(screenPx, screenPy);
-
-        for (let i = 0; i <= rayCount; i++) {
-          const rayAngle = player.angle - spread + (i / rayCount) * spread * 2;
-          const hit = castRay(player.x, player.y, rayAngle, maxRange);
-          const hx = w / 2 + (hit.x - camera.x);
-          const hy = h / 2 + (hit.y - camera.y);
-          lightCtx.lineTo(hx, hy);
-        }
-        lightCtx.closePath();
-
-        const coneGrad = lightCtx.createRadialGradient(screenPx, screenPy, 10, screenPx, screenPy, maxRange);
-        coneGrad.addColorStop(0, 'rgba(0, 0, 0, 1)');
-        coneGrad.addColorStop(0.75, 'rgba(0, 0, 0, 0.85)');
-        coneGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-        lightCtx.fillStyle = coneGrad;
-        lightCtx.fill();
-      }
-
-      // Composite darkness mask back onto world space
-      ctx.save();
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.drawImage(lightCanvas, 0, 0);
-      ctx.restore();
-    }
-
-    // --- 9. INPUT LISTENERS & RESIZE HANDLING ---
-    function resizeCanvas() {
-      // Slightly lower internal resolution for authentic PS1/VHS crisp pixelation
-      const scale = window.innerWidth < 768 ? 0.75 : 0.85;
-      canvas.width = Math.floor(window.innerWidth * scale);
-      canvas.height = Math.floor(window.innerHeight * scale);
-    }
-
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
+    window.addEventListener('resize', handleResize);
+    handleResize();
 
     window.addEventListener('keydown', (e) => {
       keys[e.code] = true;
@@ -2194,6 +2296,9 @@
         interactWorld();
       } else if (e.code === 'KeyR' && gameState === 'PLAYING') {
         reloadWeapon();
+      } else if ((e.code === 'KeyQ' || e.code === 'KeyC') && gameState === 'PLAYING') {
+        camPresetIdx = (camPresetIdx + 1) % cameraAngles.length;
+        audio.playClick(540);
       }
     });
 
@@ -2201,13 +2306,12 @@
       keys[e.code] = false;
     });
 
-    canvas.addEventListener('mousemove', (e) => {
-      const rect = canvas.getBoundingClientRect();
-      mouse.x = ((e.clientX - rect.left) / rect.width) * canvas.width;
-      mouse.y = ((e.clientY - rect.top) / rect.height) * canvas.height;
+    window.addEventListener('mousemove', (e) => {
+      mouse.ndcX = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.ndcY = -(e.clientY / window.innerHeight) * 2 + 1;
     });
 
-    canvas.addEventListener('mousedown', (e) => {
+    mountEl.addEventListener('mousedown', (e) => {
       if (gameState === 'DIALOGUE') {
         advanceDialogue();
         return;
@@ -2223,9 +2327,9 @@
       if (e.button === 2) mouse.rightDown = false;
     });
 
-    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    mountEl.addEventListener('contextmenu', (e) => e.preventDefault());
 
-    // Mobile Touch Controls Setup
+    // Mobile Touch Controls
     let mobileAimActive = false;
     const joyZone = document.getElementById('joystick-zone');
     const joyKnob = document.getElementById('joystick-knob');
@@ -2280,7 +2384,6 @@
     });
     document.getElementById('mob-use').addEventListener('click', () => interactWorld());
 
-    // Start & Restart Buttons
     document.getElementById('btn-start').addEventListener('click', () => {
       audio.init();
       document.getElementById('start-screen').classList.add('hidden');
@@ -2292,19 +2395,25 @@
       initWorld();
     });
 
-    // Main Loop
-    function gameLoop(timestamp) {
+    // Main Render & Update Loop
+    function animate(timestamp) {
       const dt = Math.min(0.05, (timestamp - lastTime) / 1000 || 0.016);
       lastTime = timestamp;
 
       update(dt);
-      render();
+      renderer.render(scene, camera);
 
-      requestAnimationFrame(gameLoop);
+      requestAnimationFrame(animate);
     }
 
     window.onload = function () {
-      requestAnimationFrame(gameLoop);
+      // Pre-render atmospheric background scene before pressing Start
+      initWorld();
+      gameState = 'START';
+      dialogueQueue = [];
+      currentDialogue = null;
+      document.getElementById('dialogue-box').classList.remove('active');
+      requestAnimationFrame(animate);
     };
   </script>
 </body>
